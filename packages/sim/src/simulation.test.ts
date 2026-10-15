@@ -112,3 +112,57 @@ describe('simulation', () => {
     }
   });
 });
+
+describe('receiving in the simulation', () => {
+  const world = testWorld({ seed: 21, operators: 3 });
+  const states = run(world);
+
+  it('only stores boxes that came off a truck, and accounts for every one of them', () => {
+    for (const state of states) {
+      const { docks, queue, arrived } = state.receiving;
+      const putawayTasks = state.operators.flatMap((o) => (o.task?.kind === 'putaway' ? [o] : []));
+      const docked = world.scenario.trucks
+        .slice(0, arrived)
+        .filter((truck) => !queue.includes(truck.id));
+      const boxesDelivered = docked.reduce((sum, truck) => sum + truck.itemIds.length, 0);
+      const stillOnTrucks = docks.reduce((sum, truck) => sum + (truck?.itemIds.length ?? 0), 0);
+
+      // Every box from a docked truck is still on it, claimed, being carried, or stored.
+      expect(stillOnTrucks + putawayTasks.length + state.stats.putaways).toBe(boxesDelivered);
+      // The truck tracks exactly the operators that have claimed but not yet lifted a box.
+      const awaiting = docks.reduce((sum, truck) => sum + (truck?.awaitingPickup ?? 0), 0);
+      expect(awaiting).toBe(putawayTasks.filter((o) => !o.carrying).length);
+    }
+  });
+
+  it('collects each box at the dock where its truck is parked', () => {
+    for (const state of states) {
+      for (const operator of state.operators) {
+        if (operator.task?.kind !== 'putaway' || operator.carrying) continue;
+        expect(state.receiving.docks[operator.task.dock]?.phase).toBe('unloading');
+      }
+    }
+  });
+
+  it('receives and unloads the whole day of trucks', () => {
+    const final = at(states, states.length - 1);
+    expect(final.receiving.arrived).toBe(world.scenario.trucks.length);
+    expect(final.stats.trucksUnloaded).toBe(world.scenario.trucks.length);
+  });
+
+  it('makes trucks wait when all docks are busy, and counts the wait', () => {
+    const rush = testWorld({
+      operators: 1,
+      scenario: {
+        trucks: {
+          count: 12,
+          boxes: [4, 4],
+          peaks: [{ startMinute: 360, endMinute: 380, weight: 100 }],
+        },
+      },
+    });
+    const rushStates = run(rush);
+    expect(rushStates.some((s) => s.receiving.queue.length > 0)).toBe(true);
+    expect(at(rushStates, rushStates.length - 1).stats.dockWaitTicks).toBeGreaterThan(0);
+  });
+});

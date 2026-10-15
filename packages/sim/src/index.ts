@@ -1,4 +1,11 @@
-export { isShiftOver, shiftClock, tickAtMinute, TICKS_PER_SECOND, type ShiftClock } from './clock';
+export {
+  isShiftOver,
+  minutesPerTick,
+  shiftClock,
+  tickAtMinute,
+  TICKS_PER_SECOND,
+  type ShiftClock,
+} from './clock';
 export { samePoint, type Point } from './geometry';
 export { isWalkable, type Grid } from './grid';
 export { createWarehouse, type Slot, type Warehouse } from './layout';
@@ -20,6 +27,8 @@ export {
   OPERATOR_SPEED,
   type Operator,
   type OperatorPhase,
+  type DispatchTask,
+  type PutawayTask,
   type SimState,
   type SimStats,
   type SlotStatus,
@@ -27,3 +36,11 @@ export {
   type TaskKind,
 } from './simulation';
 export { createWorld, type World } from './world';
+export {
+  boxesLeft,
+  docksToRelease,
+  TRUCK_MANEUVER_TICKS,
+  type DockedTruck,
+  type DockPhase,
+  type Receiving,
+} from './receiving';
