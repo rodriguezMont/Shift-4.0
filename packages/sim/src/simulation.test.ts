@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { REST_BELOW, RESUME_AT, speedFactor } from './fatigue';
 import { at, manhattanDistance, samePoint } from './geometry';
 import { isWalkable } from './grid';
 import { MAX_OPERATORS } from './layout';
@@ -160,6 +161,63 @@ describe('aisle traffic', () => {
   });
 });
 
+describe('fatigue in the simulation', () => {
+  // A small team facing a heavy day, so operators run down and need breaks.
+  const world = testWorld({
+    seed: 51,
+    operators: 2,
+    scenario: {
+      trucks: { count: 30, boxes: [4, 6], peaks: [] },
+      orders: { count: 30, boxes: [1, 3], deadlineMinutes: [60, 120], peaks: [] },
+    },
+  });
+  const states = run(world);
+
+  it('keeps every operator between exhausted and fresh', () => {
+    for (const state of states) {
+      for (const operator of state.operators) {
+        expect(operator.energy).toBeGreaterThanOrEqual(0);
+        expect(operator.energy).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+
+  it('sends tired operators on a break at home, without work, until they recover', () => {
+    let breaks = 0;
+    for (let i = 1; i < states.length; i++) {
+      const previous = at(states, i - 1);
+      at(states, i).operators.forEach((operator, index) => {
+        const before = at(previous.operators, index);
+        if (operator.phase === 'resting') {
+          expect(operator.task).toBeNull();
+          expect(operator.from).toEqual(world.warehouse.operatorHomes[operator.id]);
+          if (before.phase !== 'resting') {
+            breaks++;
+            expect(before.energy).toBeLessThan(REST_BELOW);
+          }
+        }
+        if (before.phase === 'resting' && operator.phase !== 'resting') {
+          expect(before.energy).toBeGreaterThanOrEqual(RESUME_AT);
+        }
+      });
+    }
+    expect(breaks).toBeGreaterThan(0);
+    const final = at(states, states.length - 1);
+    expect(final.stats.breakTicks).toBeGreaterThan(0);
+  });
+
+  it('makes tired operators walk slower', () => {
+    for (let i = 1; i < states.length; i++) {
+      const previous = at(states, i - 1);
+      at(states, i).operators.forEach((operator, index) => {
+        const before = at(previous.operators, index);
+        const moved = manhattanDistance(operatorPosition(before), operatorPosition(operator));
+        expect(moved).toBeLessThanOrEqual(OPERATOR_SPEED * speedFactor(before.energy) + 1e-9);
+      });
+    }
+  });
+});
+
 describe('orders in the simulation', () => {
   const world = testWorld({ seed: 41, operators: 3 });
   const states = run(world);
@@ -236,10 +294,12 @@ describe('receiving in the simulation', () => {
     }
   });
 
-  it('receives and unloads the whole day of trucks', () => {
-    const final = at(states, states.length - 1);
-    expect(final.receiving.arrived).toBe(world.scenario.trucks.length);
-    expect(final.stats.trucksUnloaded).toBe(world.scenario.trucks.length);
+  it('receives and unloads the whole day of trucks, given enough hands', () => {
+    // A generous team, so the check is about the flow working, not about balance.
+    const staffed = testWorld({ seed: 21, operators: 6 });
+    const final = at(run(staffed), TEST_SHIFT_TICKS);
+    expect(final.receiving.arrived).toBe(staffed.scenario.trucks.length);
+    expect(final.stats.trucksUnloaded).toBe(staffed.scenario.trucks.length);
   });
 
   it('makes trucks wait when all docks are busy, and counts the wait', () => {

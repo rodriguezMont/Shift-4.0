@@ -1,4 +1,5 @@
 import { isShiftOver } from './clock';
+import { needsRest, nextEnergy, RESUME_AT, speedFactor, type Effort } from './fatigue';
 import { at, samePoint, type Point } from './geometry';
 import {
   advance,
@@ -6,6 +7,7 @@ import {
   isHeldUp,
   isMoving,
   Occupancy,
+  OPERATOR_SPEED,
   routeTo,
   walkerPosition,
   type Walker,
@@ -64,9 +66,12 @@ export interface DispatchTask {
 export type Task = PutawayTask | DispatchTask;
 export type TaskKind = Task['kind'];
 
-/** `returning`: no work available, walking back to the operator's home cell. */
+/**
+ * `returning`: no work available, walking back to the operator's home cell.
+ * `toBreak` / `resting`: too tired to work, walking home for a break / on it.
+ */
 export type OperatorPhase =
-  'idle' | 'returning' | 'toPickup' | 'picking' | 'toDropoff' | 'dropping';
+  'idle' | 'returning' | 'toBreak' | 'resting' | 'toPickup' | 'picking' | 'toDropoff' | 'dropping';
 
 export interface Operator extends Walker {
   readonly id: number;
@@ -74,6 +79,8 @@ export interface Operator extends Walker {
   readonly task: Task | null;
   readonly carrying: boolean;
   readonly waitTicks: number;
+  /** Stamina from 0 (exhausted) to 1 (fresh). See `fatigue.ts`. */
+  readonly energy: number;
 }
 
 export interface SimStats {
@@ -88,6 +95,8 @@ export interface SimStats {
   readonly dockWaitTicks: number;
   /** Sum over ticks of operators held up by traffic: blocked, or standing aside to give way. */
   readonly congestionTicks: number;
+  /** Sum over ticks of operators on a break. */
+  readonly breakTicks: number;
 }
 
 /** Everything that changes during a run. Plain data: serialisable and comparable. */
@@ -131,6 +140,7 @@ export function createInitialState({ warehouse, level, scenario }: World): SimSt
       task: null,
       carrying: false,
       waitTicks: 0,
+      energy: 1,
     };
   });
 
@@ -149,6 +159,7 @@ export function createInitialState({ warehouse, level, scenario }: World): SimSt
       trucksUnloaded: 0,
       dockWaitTicks: 0,
       congestionTicks: 0,
+      breakTicks: 0,
     },
   };
 }
@@ -185,12 +196,29 @@ export function step(world: World, state: SimState): SimState {
     let next: Operator;
     [next, shared] = stepOperator(context, operator, shared);
     context.occupancy.add(next);
-    return next;
+    const effort = effortOf(operator, next);
+    return { ...next, energy: nextEnergy(next.energy, effort, level.shift.durationTicks) };
   });
 
   const heldUp = operators.filter(isHeldUp).length;
-  const stats = { ...shared.stats, congestionTicks: shared.stats.congestionTicks + heldUp };
+  const onBreak = operators.filter((operator) => operator.phase === 'resting').length;
+  const stats = {
+    ...shared.stats,
+    congestionTicks: shared.stats.congestionTicks + heldUp,
+    breakTicks: shared.stats.breakTicks + onBreak,
+  };
   return { tick: state.tick + 1, operators, ...shared, stats };
+}
+
+/** How hard an operator worked this tick, judged from where they were and are now. */
+function effortOf(before: Operator, after: Operator): Effort {
+  if (after.phase === 'resting') return 'resting';
+  if (after.phase === 'picking' || after.phase === 'dropping') return 'handling';
+  if (!samePoint(walkerPosition(before), walkerPosition(after))) {
+    return after.carrying ? 'carrying' : 'walking';
+  }
+  // Standing idle recovers a little; standing in traffic neither tires nor rests.
+  return after.phase === 'idle' ? 'waiting' : 'still';
 }
 
 /** Interpolated position between the cells an operator is walking across. */
@@ -202,10 +230,20 @@ function stepOperator(context: Context, operator: Operator, shared: Shared): [Op
   const { warehouse, scenario } = context.world;
   switch (operator.phase) {
     case 'idle': {
+      const home = at(warehouse.operatorHomes, operator.id);
+      const atHome = samePoint(operator.from, home);
+      // A tired operator finishes the current task, then takes a break at home.
+      if (needsRest(operator.energy)) {
+        return atHome
+          ? [{ ...operator, phase: 'resting' }, shared]
+          : [
+              { ...operator, ...routeTo(warehouse.grid, operator.from, home), phase: 'toBreak' },
+              shared,
+            ];
+      }
       const [assigned, next] = assignTask(context, operator, shared);
       if (assigned !== operator) return [assigned, next];
-      const home = at(warehouse.operatorHomes, operator.id);
-      if (samePoint(operator.from, home)) return [operator, shared];
+      if (atHome) return [operator, shared];
       return [
         { ...operator, ...routeTo(warehouse.grid, operator.from, home), phase: 'returning' },
         shared,
@@ -214,13 +252,24 @@ function stepOperator(context: Context, operator: Operator, shared: Shared): [Op
 
     case 'returning': {
       // Work beats walking home: take a task as soon as one appears.
-      if (!isMoving(operator)) {
+      if (!isMoving(operator) && !needsRest(operator.energy)) {
         const [assigned, next] = assignTask(context, operator, shared);
         if (assigned !== operator) return [assigned, next];
       }
       const [walked, next] = move(context, operator, shared);
-      return hasArrived(walked) ? [{ ...walked, phase: 'idle' }, next] : [walked, next];
+      if (!hasArrived(walked)) return [walked, next];
+      return [{ ...walked, phase: needsRest(walked.energy) ? 'resting' : 'idle' }, next];
     }
+
+    case 'toBreak': {
+      const [walked, next] = move(context, operator, shared);
+      return hasArrived(walked) ? [{ ...walked, phase: 'resting' }, next] : [walked, next];
+    }
+
+    case 'resting':
+      return operator.energy >= RESUME_AT
+        ? [{ ...operator, phase: 'idle' }, shared]
+        : [operator, shared];
 
     case 'toPickup':
     case 'toDropoff': {
@@ -285,7 +334,8 @@ function stepOperator(context: Context, operator: Operator, shared: Shared): [Op
 
 function move(context: Context, operator: Operator, shared: Shared): [Operator, Shared] {
   const { grid } = context.world.warehouse;
-  const { walker, rng } = advance(operator, grid, context.occupancy, shared.rng);
+  const speed = OPERATOR_SPEED * speedFactor(operator.energy);
+  const { walker, rng } = advance(operator, grid, context.occupancy, shared.rng, speed);
   return [walker, { ...shared, rng }];
 }
 
