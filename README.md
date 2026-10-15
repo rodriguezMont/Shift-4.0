@@ -3,10 +3,13 @@
 [![CI](https://github.com/rodriguezMont/Shift-4.0/actions/workflows/ci.yml/badge.svg)](https://github.com/rodriguezMont/Shift-4.0/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-A warehouse shift simulator where autonomous robots, driven by a fast decision model, work
-alongside human operators.
+A human-in-the-loop AI decision system for warehouse operations, delivered as a playable
+simulation: robots driven by a fast decision model work alongside human operators, and live
+panels show both the operation and the AI system behind it.
 
-> Work in progress — milestone 0: warehouse floor plan, one operator and movement.
+> Work in progress — Stage 0 (foundation) is done. See the
+> [product one-pager](docs/product/one-pager.md), the [roadmap](docs/plan/ROADMAP.md) and the
+> [current status](docs/plan/STATUS.md).
 
 ## Getting started
 
