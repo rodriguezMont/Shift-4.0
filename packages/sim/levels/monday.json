@@ -1,0 +1,13 @@
+{
+  "id": "monday",
+  "title": "Monday",
+  "seed": 20261019,
+  "shift": {
+    "start": "06:00",
+    "end": "14:00",
+    "durationSeconds": 210
+  },
+  "team": {
+    "operators": 2
+  }
+}

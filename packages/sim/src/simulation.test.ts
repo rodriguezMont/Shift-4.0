@@ -1,27 +1,28 @@
 import { describe, expect, it } from 'vitest';
 import { at, manhattanDistance } from './geometry';
 import { isWalkable } from './grid';
-import { createWarehouse } from './layout';
 import {
   createInitialState,
   operatorPosition,
   step,
   OPERATOR_SPEED,
-  TICKS_PER_SECOND,
   type SimState,
 } from './simulation';
+import { testWorld, TEST_SHIFT_TICKS } from './testing';
+import type { World } from './world';
 
-const warehouse = createWarehouse();
-/** Five simulated minutes: roughly one match. */
-const MATCH_TICKS = 5 * 60 * TICKS_PER_SECOND;
-
-function run(seed: number, ticks: number, operatorCount = 1): SimState[] {
-  const states = [createInitialState(warehouse, { seed, operatorCount })];
+/** Runs a whole shift and returns every state, starting with the initial one. */
+function run(world: World, ticks = TEST_SHIFT_TICKS): SimState[] {
+  const states = [createInitialState(world)];
   for (let i = 0; i < ticks; i++) {
-    const last = at(states, states.length - 1);
-    states.push(step(warehouse, last));
+    states.push(step(world, at(states, states.length - 1)));
   }
   return states;
+}
+
+function finalState(world: World): SimState {
+  const states = run(world);
+  return at(states, states.length - 1);
 }
 
 /** Boxes in racks plus boxes being carried out; putaways add to it, dispatches remove. */
@@ -34,40 +35,56 @@ function boxesInWarehouse(state: SimState): number {
 }
 
 describe('simulation', () => {
-  it('is deterministic: the same seed always produces the same run', () => {
-    expect(run(42, MATCH_TICKS).at(-1)).toEqual(run(42, MATCH_TICKS).at(-1));
+  it('is deterministic: the same level always produces the same run', () => {
+    expect(finalState(testWorld({ seed: 42 }))).toEqual(finalState(testWorld({ seed: 42 })));
   });
 
   it('produces different runs for different seeds', () => {
-    expect(run(1, MATCH_TICKS).at(-1)).not.toEqual(run(2, MATCH_TICKS).at(-1));
+    expect(finalState(testWorld({ seed: 1 }))).not.toEqual(finalState(testWorld({ seed: 2 })));
+  });
+
+  it('starts with the team size the level defines', () => {
+    expect(createInitialState(testWorld({ operators: 3 })).operators).toHaveLength(3);
   });
 
   it('does not mutate the state it is given', () => {
-    const initial = createInitialState(warehouse, { seed: 7 });
+    const world = testWorld({ seed: 7 });
+    const initial = createInitialState(world);
     const snapshot: unknown = JSON.parse(JSON.stringify(initial));
-    step(warehouse, initial);
+    step(world, initial);
     expect(initial).toEqual(snapshot);
   });
 
+  it('stops advancing once the shift is over', () => {
+    const world = testWorld({ durationTicks: 50 });
+    const states = run(world, 60);
+    const final = at(states, 50);
+
+    expect(final.tick).toBe(50);
+    expect(step(world, final)).toBe(final);
+    expect(at(states, states.length - 1)).toBe(final);
+  });
+
   it('keeps operators on walkable cells and moving at most one step of speed per tick', () => {
-    const states = run(3, MATCH_TICKS, 3);
+    const world = testWorld({ seed: 3, operators: 3 });
+    const states = run(world);
     for (let i = 1; i < states.length; i++) {
       const previous = at(states, i - 1);
-      const current = at(states, i);
-      current.operators.forEach((operator, index) => {
-        expect(isWalkable(warehouse.grid, operator.from)).toBe(true);
-        expect(isWalkable(warehouse.grid, operator.to)).toBe(true);
-        const before = previous.operators[index];
-        if (before === undefined) throw new Error('operator disappeared');
+      at(states, i).operators.forEach((operator, index) => {
+        expect(isWalkable(world.warehouse.grid, operator.from)).toBe(true);
+        expect(isWalkable(world.warehouse.grid, operator.to)).toBe(true);
         expect(
-          manhattanDistance(operatorPosition(before), operatorPosition(operator)),
+          manhattanDistance(
+            operatorPosition(at(previous.operators, index)),
+            operatorPosition(operator),
+          ),
         ).toBeLessThanOrEqual(OPERATOR_SPEED + 1e-9);
       });
     }
   });
 
   it('completes work and conserves boxes across the whole shift', () => {
-    const states = run(11, MATCH_TICKS, 3);
+    const states = run(testWorld({ seed: 11, operators: 3 }));
     const initialBoxes = boxesInWarehouse(at(states, 0));
 
     for (const state of states) {
@@ -80,7 +97,7 @@ describe('simulation', () => {
   });
 
   it('never assigns the same slot to two operators at once', () => {
-    for (const state of run(5, MATCH_TICKS, 3)) {
+    for (const state of run(testWorld({ seed: 5, operators: 3 }))) {
       const reserved = state.operators.flatMap((o) => (o.task ? [o.task.slotId] : []));
       expect(new Set(reserved).size).toBe(reserved.length);
     }
