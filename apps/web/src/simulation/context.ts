@@ -1,6 +1,6 @@
 import type { SimState } from '@shift40/sim';
 import { createContext, useContext, useSyncExternalStore } from 'react';
-import type { SimulationRunner } from './runner';
+import type { Playback, SimulationRunner } from './runner';
 
 export const RunnerContext = createContext<SimulationRunner | null>(null);
 
@@ -14,4 +14,10 @@ export function useRunner(): SimulationRunner {
 export function useSimState(): SimState {
   const runner = useRunner();
   return useSyncExternalStore(runner.subscribe, runner.getState);
+}
+
+/** Speed, pause and end-of-shift state; re-renders only when one of them changes. */
+export function usePlayback(): Playback {
+  const runner = useRunner();
+  return useSyncExternalStore(runner.subscribe, runner.getPlayback);
 }

@@ -1,5 +1,8 @@
-import { TICKS_PER_SECOND } from '@shift40/sim';
-import { useSimState } from '../simulation/context';
+import { shiftClock } from '@shift40/sim';
+import { usePlayback, useRunner, useSimState } from '../simulation/context';
+import { SPEEDS } from '../simulation/runner';
+import { formatMinuteOfDay } from './format';
+import { ShiftStats } from './ShiftStats';
 
 export type View = 'scene' | 'debug';
 
@@ -9,22 +12,28 @@ interface HudProps {
 }
 
 export function Hud({ view, onToggleView }: HudProps) {
-  const { tick, stats, operators } = useSimState();
+  const runner = useRunner();
+  const { tick } = useSimState();
+  const { level } = runner.world;
+  const clock = shiftClock(level, tick);
 
   return (
-    <aside className="hud" aria-label="Simulation status">
-      <h1>Shift 4.0</h1>
-      <p>Milestone 0 · movement prototype</p>
-      <dl>
-        <dt>Elapsed</dt>
-        <dd>{formatElapsed(tick)}</dd>
-        <dt>Operators</dt>
-        <dd>{operators.length}</dd>
-        <dt>Put away</dt>
-        <dd>{stats.putaways}</dd>
-        <dt>Dispatched</dt>
-        <dd>{stats.dispatches}</dd>
-      </dl>
+    <aside className="hud" aria-label="Shift status">
+      <header>
+        <h1>Shift 4.0</h1>
+        <p>{level.title}</p>
+      </header>
+
+      <div className="hud-clock">
+        <time aria-label="Shift time">{formatMinuteOfDay(clock.minuteOfDay)}</time>
+        <span>{formatMinuteOfDay(level.shift.endMinute)}</span>
+      </div>
+      <progress max={1} value={clock.progress} aria-label="Shift progress" />
+
+      <PlaybackControls />
+
+      <ShiftStats />
+
       <button type="button" onClick={onToggleView}>
         {view === 'scene' ? 'Debug view' : '3D view'} (D)
       </button>
@@ -32,8 +41,36 @@ export function Hud({ view, onToggleView }: HudProps) {
   );
 }
 
-function formatElapsed(tick: number): string {
-  const seconds = Math.floor(tick / TICKS_PER_SECOND);
-  const minutes = Math.floor(seconds / 60);
-  return `${String(minutes).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+function PlaybackControls() {
+  const runner = useRunner();
+  const { speed, paused, finished } = usePlayback();
+
+  return (
+    <div className="hud-playback" role="group" aria-label="Playback speed">
+      <button
+        type="button"
+        aria-pressed={paused}
+        disabled={finished}
+        onClick={() => {
+          runner.togglePause();
+        }}
+      >
+        {paused ? 'Resume' : 'Pause'}
+      </button>
+      {SPEEDS.map((option, index) => (
+        <button
+          key={option}
+          type="button"
+          aria-pressed={!paused && speed === option}
+          aria-keyshortcuts={String(index + 1)}
+          disabled={finished}
+          onClick={() => {
+            runner.setSpeed(option);
+          }}
+        >
+          {option}×
+        </button>
+      ))}
+    </div>
+  );
 }
