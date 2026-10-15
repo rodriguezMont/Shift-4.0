@@ -2,7 +2,7 @@ import { isShiftOver } from './clock';
 import { at, samePoint, type Point } from './geometry';
 import type { Warehouse } from './layout';
 import { findPath } from './pathfinding';
-import { nextRandom, randomInt } from './rng';
+import { deriveSeed, nextRandom, randomInt } from './rng';
 import type { World } from './world';
 
 /** Cells walked per tick (2.5 cells/s at 10 ticks/s). Must stay below 1. */
@@ -10,7 +10,8 @@ export const OPERATOR_SPEED = 0.25;
 export const PICK_TICKS = 8;
 export const DROP_TICKS = 8;
 const DISPATCH_PROBABILITY = 0.4;
-const INITIAL_FILL_RATIO = 0.3;
+/** Random stream id for the simulation; the scenario generator draws from its own stream. */
+const SIMULATION_STREAM = 0;
 
 /**
  * `incoming` and `outgoing` reserve a slot while a box is on its way in or out,
@@ -63,13 +64,9 @@ export interface SimState {
 type Shared = Pick<SimState, 'rng' | 'slots' | 'stats'>;
 
 /** The state at the start of the level's shift, fully determined by the level and its seed. */
-export function createInitialState({ warehouse, level }: World): SimState {
-  let rng = level.seed | 0;
-  const slots = warehouse.slots.map((): SlotStatus => {
-    const [roll, next] = nextRandom(rng);
-    rng = next;
-    return roll < INITIAL_FILL_RATIO ? 'stored' : 'empty';
-  });
+export function createInitialState({ warehouse, level, scenario }: World): SimState {
+  const stocked = new Set(scenario.initialStock.map(({ slotId }) => slotId));
+  const slots = warehouse.slots.map(({ id }): SlotStatus => (stocked.has(id) ? 'stored' : 'empty'));
 
   const operators = Array.from({ length: level.team.operators }, (_, id): Operator => {
     const spawn = at(warehouse.inboundDocks, id % warehouse.inboundDocks.length);
@@ -86,6 +83,7 @@ export function createInitialState({ warehouse, level }: World): SimState {
     };
   });
 
+  const rng = deriveSeed(level.seed, SIMULATION_STREAM);
   return { tick: 0, rng, operators, slots, stats: { putaways: 0, dispatches: 0 } };
 }
 

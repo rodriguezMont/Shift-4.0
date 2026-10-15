@@ -16,6 +16,13 @@ export function shiftClock(level: LevelConfig, tick: number): ShiftClock {
   return { minuteOfDay: startMinute + (endMinute - startMinute) * progress, progress };
 }
 
+/** Inverse of `shiftClock`: the tick at which the shift reaches `minuteOfDay` (clamped). */
+export function tickAtMinute(level: LevelConfig, minuteOfDay: number): number {
+  const { startMinute, endMinute, durationTicks } = level.shift;
+  const progress = (minuteOfDay - startMinute) / (endMinute - startMinute);
+  return Math.round(Math.min(Math.max(progress, 0), 1) * durationTicks);
+}
+
 export function isShiftOver(level: LevelConfig, tick: number): boolean {
   return tick >= level.shift.durationTicks;
 }
