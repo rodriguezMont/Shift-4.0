@@ -44,3 +44,10 @@ export {
   type DockPhase,
   type Receiving,
 } from './receiving';
+export {
+  isReleased,
+  nextOrderToPick,
+  openOrderCount,
+  type OrderOutcome,
+  type OrderProgress,
+} from './orders';

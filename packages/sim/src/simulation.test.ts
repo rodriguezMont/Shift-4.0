@@ -132,8 +132,11 @@ describe('aisle traffic', () => {
     const states = run(testWorld({ seed: 31, operators: MAX_OPERATORS }));
     const longestWait = Math.max(...states.flatMap((s) => s.operators.map((o) => o.blockedTicks)));
     expect(longestWait).toBeLessThan(SIDESTEP_AFTER_TICKS * 3);
+    // With a full team, gridlock is the only thing that could leave the day's work undone.
+    const world = testWorld({ seed: 31, operators: MAX_OPERATORS });
     const final = at(states, states.length - 1);
-    expect(final.stats.putaways + final.stats.dispatches).toBeGreaterThan(MAX_OPERATORS * 3);
+    expect(final.stats.trucksUnloaded).toBe(world.scenario.trucks.length);
+    expect(final.stats.ordersShipped).toBe(world.scenario.orders.length);
   });
 
   it('costs more time to congestion as the team grows', () => {
@@ -154,6 +157,51 @@ describe('aisle traffic', () => {
       expect(operator.from).toEqual(world.warehouse.operatorHomes[operator.id]);
       expect(operator.phase).toBe('idle');
     });
+  });
+});
+
+describe('orders in the simulation', () => {
+  const world = testWorld({ seed: 41, operators: 3 });
+  const states = run(world);
+
+  it('only picks for released orders, and never more boxes than an order needs', () => {
+    for (const state of states) {
+      for (const operator of state.operators) {
+        if (operator.task?.kind !== 'dispatch') continue;
+        const order = at(world.scenario.orders, operator.task.orderId);
+        expect(order.releaseTick).toBeLessThanOrEqual(state.tick);
+      }
+      state.orders.forEach((progress, id) => {
+        const order = at(world.scenario.orders, id);
+        expect(progress.delivered).toBeLessThanOrEqual(progress.claimed);
+        expect(progress.claimed).toBeLessThanOrEqual(order.quantity);
+      });
+    }
+  });
+
+  it('counts every delivered box and every shipped order exactly once', () => {
+    const final = at(states, states.length - 1);
+    const delivered = final.orders.reduce((sum, progress) => sum + progress.delivered, 0);
+    const shippedTicks = final.orders.map((progress) => progress.shippedTick);
+    const shipped = shippedTicks.filter((tick) => tick !== null).length;
+    const late = shippedTicks.filter(
+      (tick, id) => tick !== null && tick > at(world.scenario.orders, id).deadlineTick,
+    ).length;
+    expect(final.stats.dispatches).toBe(delivered);
+    expect(final.stats.ordersShipped).toBe(shipped);
+    expect(final.stats.ordersLate).toBe(late);
+    expect(final.stats.ordersShipped).toBeGreaterThan(0);
+  });
+
+  it('dispatches nothing when there are no orders', () => {
+    const quiet = testWorld({
+      operators: 3,
+      scenario: { orders: { count: 0, boxes: [1, 1], deadlineMinutes: [60, 60], peaks: [] } },
+    });
+    for (const state of run(quiet)) {
+      expect(state.operators.some((o) => o.task?.kind === 'dispatch')).toBe(false);
+      expect(state.stats.dispatches).toBe(0);
+    }
   });
 });
 
