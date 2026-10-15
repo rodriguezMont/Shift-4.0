@@ -16,6 +16,8 @@ export const palette = {
   helmet: '#f5c242',
   truckTrailer: '#f4f5f7',
   truckCab: '#2b3340',
+  truckDoor: '#b9c0c9',
+  truckInterior: '#1a1d22',
   dockFrame: '#5b6575',
   route: '#2f6fb0',
 } as const;
