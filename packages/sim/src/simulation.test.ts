@@ -47,6 +47,15 @@ describe('simulation', () => {
     expect(createInitialState(testWorld({ operators: 3 })).operators).toHaveLength(3);
   });
 
+  it('starts with exactly the stock the scenario planned', () => {
+    const world = testWorld({ scenario: { initialStock: 0.5 } });
+    const stocked = createInitialState(world)
+      .slots.flatMap((status, slotId) => (status === 'stored' ? [slotId] : []))
+      .sort((a, b) => a - b);
+    const planned = world.scenario.initialStock.map((s) => s.slotId).sort((a, b) => a - b);
+    expect(stocked).toEqual(planned);
+  });
+
   it('does not mutate the state it is given', () => {
     const world = testWorld({ seed: 7 });
     const initial = createInitialState(world);

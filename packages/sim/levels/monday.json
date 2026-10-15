@@ -9,5 +9,19 @@
   },
   "team": {
     "operators": 2
+  },
+  "scenario": {
+    "initialStock": 0.3,
+    "fragileRatio": 0,
+    "trucks": {
+      "count": 8,
+      "boxes": [3, 6]
+    },
+    "orders": {
+      "count": 18,
+      "boxes": [1, 2],
+      "deadlineMinutes": [90, 150],
+      "peaks": [{ "at": "10:00", "minutes": 60, "weight": 3 }]
+    }
   }
 }

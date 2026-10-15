@@ -1,6 +1,7 @@
 import { shiftClock } from '@shift40/sim';
 import { usePlayback, useRunner, useSimState } from '../simulation/context';
 import { SPEEDS } from '../simulation/runner';
+import { DayPlan } from './DayPlan';
 import { formatMinuteOfDay } from './format';
 import { ShiftStats } from './ShiftStats';
 
@@ -32,6 +33,7 @@ export function Hud({ view, onToggleView }: HudProps) {
 
       <PlaybackControls />
 
+      <DayPlan />
       <ShiftStats />
 
       <button type="button" onClick={onToggleView}>

@@ -1,10 +1,18 @@
-export { isShiftOver, shiftClock, TICKS_PER_SECOND, type ShiftClock } from './clock';
+export { isShiftOver, shiftClock, tickAtMinute, TICKS_PER_SECOND, type ShiftClock } from './clock';
 export { samePoint, type Point } from './geometry';
 export { isWalkable, type Grid } from './grid';
 export { createWarehouse, type Slot, type Warehouse } from './layout';
 export { parseLevel, type LevelConfig } from './level';
 export { LEVELS } from './levels';
 export { findPath } from './pathfinding';
+export {
+  generateScenario,
+  type Item,
+  type Order,
+  type Scenario,
+  type StockedItem,
+  type TruckArrival,
+} from './scenario';
 export {
   createInitialState,
   operatorPosition,

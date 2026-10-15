@@ -3,24 +3,50 @@ import { TICKS_PER_SECOND } from './clock';
 import { parseLevel } from './level';
 import { LEVELS } from './levels';
 
+const validScenario = {
+  initialStock: 0.3,
+  fragileRatio: 0.1,
+  trucks: { count: 8, boxes: [3, 6] },
+  orders: {
+    count: 18,
+    boxes: [1, 2],
+    deadlineMinutes: [90, 150],
+    peaks: [{ at: '10:00', minutes: 60, weight: 3 }],
+  },
+};
+
 const validLevel = {
   id: 'monday',
   title: 'Monday',
   seed: 123,
   shift: { start: '06:00', end: '14:00', durationSeconds: 210 },
   team: { operators: 2 },
+  scenario: validScenario,
 };
 
 describe('parseLevel', () => {
-  it('resolves times to minutes and duration to ticks', () => {
+  it('resolves times to minutes, duration to ticks and peaks to windows', () => {
     expect(parseLevel(validLevel)).toEqual({
       id: 'monday',
       title: 'Monday',
       seed: 123,
       shift: { startMinute: 360, endMinute: 840, durationTicks: 210 * TICKS_PER_SECOND },
       team: { operators: 2 },
+      scenario: {
+        initialStock: 0.3,
+        fragileRatio: 0.1,
+        trucks: { count: 8, boxes: [3, 6], peaks: [] },
+        orders: {
+          count: 18,
+          boxes: [1, 2],
+          deadlineMinutes: [90, 150],
+          peaks: [{ startMinute: 600, endMinute: 660, weight: 3 }],
+        },
+      },
     });
   });
+
+  const withScenario = (scenario: object) => ({ scenario: { ...validScenario, ...scenario } });
 
   it.each([
     ['a malformed time', { shift: { ...validLevel.shift, start: '6am' } }],
@@ -30,6 +56,15 @@ describe('parseLevel', () => {
     ['an empty team', { team: { operators: 0 } }],
     ['a non-integer seed', { seed: 1.5 }],
     ['an unknown key', { difficulty: 'hard' }],
+    ['a missing scenario', { scenario: undefined }],
+    ['a ratio above 1', withScenario({ fragileRatio: 1.5 })],
+    ['an inverted range', withScenario({ trucks: { count: 8, boxes: [6, 3] } })],
+    [
+      'a peak weaker than baseline',
+      withScenario({
+        trucks: { count: 8, boxes: [1, 2], peaks: [{ at: '09:00', minutes: 30, weight: 0.5 }] },
+      }),
+    ],
   ])('rejects %s', (_, override) => {
     expect(() => parseLevel({ ...validLevel, ...override })).toThrow(/Invalid level/);
   });
