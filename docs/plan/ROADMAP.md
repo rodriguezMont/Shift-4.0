@@ -17,11 +17,13 @@ one or more small pull requests. Product context lives in the
 | 5. Experience and content       | Control-room UI, guided level 1, levels 2–5, end-of-shift report, `/ops` | ~1 week  | ⬜     |
 | 6. Deploy and launch            | Hosting, security and performance pass, e2e tests, README, launch        | ~4 days  | ⬜     |
 
-**Total: about six weeks.**
+**Total: about six and a half weeks.**
 
 **Launch cut line.** If time runs short, the first public release ships with Monday
-and Tuesday playable; Wednesday to Friday follow as updates. Jev is never cut — it
-ships before rankings if something has to slip.
+and Tuesday playable; Wednesday to Friday follow as updates. Infrastructure upgrades
+(items marked _below the cut line_) can also follow after launch: every level is
+winnable without them. Jev is never cut — it ships before rankings if something has
+to slip.
 
 ## How the stages map to the four pillars
 
@@ -70,6 +72,10 @@ Goal: automation works end to end with no network.
 - ⬜ 2.5 Exception routing to humans and the confidence threshold control
 - ⬜ 2.6 Level 1 purchase path and balance: no purchases → 1 star; guided path → 3
   stars, enforced by tests
+- ⬜ 2.7 _Below the cut line._ Infrastructure upgrades in the simulation: a catalog of
+  four (a fourth inbound dock, faster pallet jacks, a rest area, an extra charger)
+  applied to the run configuration on the same floor plan; tests prove every level
+  is still winnable with none
 
 ## Stage 3 — Jev in production
 
@@ -95,6 +101,8 @@ Goal: progress survives and rankings can be trusted.
   level
 - ⬜ 4.5 Global ranking (sum of best scores) and per-level rankings
 - ⬜ 4.6 First-party product events, no third-party trackers
+- ⬜ 4.7 _Below the cut line._ Purchased upgrades persisted per player; stars earn
+  investment points; the server checks the upgrades a run used during replay
 
 ## Stage 5 — Experience and content
 
@@ -108,6 +116,8 @@ Goal: the control-room experience and the full working week.
 - ⬜ 5.5 Levels 2–5 (Tuesday to Friday) as configuration, each with balance tests
 - ⬜ 5.6 `/ops` console, sharing components and metrics with the in-game panels
 - ⬜ 5.7 Visual identity, animation polish and a mobile fallback
+- ⬜ 5.8 _Below the cut line._ Week planning screen: spend investment points on
+  upgrades between levels
 
 ## Stage 6 — Deploy and launch
 
@@ -132,3 +142,8 @@ first one. Decisions already taken in conversation and reflected above:
 - Wallet and score are separate, so investment never lowers the score.
 - No username/password accounts: anonymous play plus Google or GitHub.
 - Mechanical failures and workplace accidents are out of scope for now.
+- One map for the whole campaign. Progression comes from **permanent infrastructure
+  upgrades** carried across levels, bought between levels with investment points
+  earned from stars. Upgrades modify the same floor plan rather than adding maps, mix
+  infrastructure with AI capabilities, and are recorded with each run for fair
+  rankings and replay.
