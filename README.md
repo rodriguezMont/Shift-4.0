@@ -1,5 +1,8 @@
 # Shift 4.0
 
+[![CI](https://github.com/rodriguezMont/Shift-4.0/actions/workflows/ci.yml/badge.svg)](https://github.com/rodriguezMont/Shift-4.0/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 A warehouse shift simulator where autonomous robots, driven by a fast decision model, work
 alongside human operators.
 
@@ -7,7 +10,7 @@ alongside human operators.
 
 ## Getting started
 
-Requires Node.js 24+.
+Requires Node.js 24+ (see `.nvmrc`).
 
 ```bash
 npm install
@@ -31,3 +34,12 @@ Press `D` in the app to switch between the isometric 3D view and the 2D debug vi
   A seed fully determines a run.
 - `apps/web` — React + react-three-fiber view. Runs the simulation at a fixed tick rate and
   interpolates between ticks for smooth rendering.
+
+## Continuous integration
+
+Every pull request and every push to `main` runs `npm run check` and the production build on
+GitHub Actions. Third-party actions are pinned to commit SHAs.
+
+## License
+
+[MIT](LICENSE) © Silvio Monteiro
