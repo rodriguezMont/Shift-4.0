@@ -1,0 +1,18 @@
+{
+  "name": "@shift40/sim",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Deterministic, render-agnostic warehouse simulation core for Shift 4.0.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "vitest": "^5.0.4"
+  }
+}
