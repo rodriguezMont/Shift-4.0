@@ -5,10 +5,11 @@ import { useRunner, useSimState } from '../simulation/context';
 export function ShiftStats() {
   const { world } = useRunner();
   const { stats, operators, receiving } = useSimState();
+  const minutes = minutesPerTick(world.level);
   const averageWait =
-    receiving.arrived > 0
-      ? (stats.dockWaitTicks / receiving.arrived) * minutesPerTick(world.level)
-      : 0;
+    receiving.arrived > 0 ? (stats.dockWaitTicks / receiving.arrived) * minutes : 0;
+  // Operator-minutes spent waiting for someone to clear the way.
+  const lostInAisles = stats.congestionTicks * minutes;
 
   return (
     <dl>
@@ -18,6 +19,8 @@ export function ShiftStats() {
       <dd>{stats.trucksUnloaded}</dd>
       <dt>Avg dock wait</dt>
       <dd>{Math.round(averageWait)} min</dd>
+      <dt>Lost in aisles</dt>
+      <dd>{Math.round(lostInAisles)} min</dd>
       <dt>Put away</dt>
       <dd>{stats.putaways}</dd>
       <dt>Dispatched</dt>

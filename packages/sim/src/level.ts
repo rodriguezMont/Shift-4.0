@@ -1,8 +1,7 @@
 import { z } from 'zod';
 import { TICKS_PER_SECOND } from './clock';
+import { MAX_OPERATORS } from './layout';
 
-/** Upper bound on the starting team; keeps level files within what the floor plan can hold. */
-const MAX_OPERATORS = 12;
 /** Upper bound on generated arrivals per stream, to keep level files honest about load. */
 const MAX_ARRIVALS = 200;
 

@@ -50,6 +50,19 @@ describe('findPath', () => {
     expectContiguous(start, path);
   });
 
+  it('treats extra blocked cells as obstacles, except the goal itself', () => {
+    const grid = gridFromRows(['.....', '.....']);
+    const start = { x: 0, y: 0 };
+    const goal = { x: 4, y: 0 };
+    const occupied = (cell: Point) => cell.y === 0 && (cell.x === 2 || cell.x === 4);
+
+    const path = findPath(grid, start, goal, occupied) ?? [];
+
+    expect(path).not.toContainEqual({ x: 2, y: 0 });
+    expect(path.at(-1)).toEqual(goal);
+    expectContiguous(start, path);
+  });
+
   it('returns null when the goal is unreachable or blocked', () => {
     const walledOff = gridFromRows(['..#..', '..#..']);
     expect(findPath(walledOff, { x: 0, y: 0 }, { x: 4, y: 0 })).toBeNull();

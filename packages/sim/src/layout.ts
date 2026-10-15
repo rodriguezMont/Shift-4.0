@@ -8,6 +8,11 @@ const DOCK_ROWS = [4, 8, 12] as const;
 const INBOUND_COLUMN = 1;
 const OUTBOUND_COLUMN = WIDTH - 2;
 const DOCK_ZONE_COLUMNS = 3;
+/** Operators wait against the receiving wall, off every route, around each dock row. */
+const HOME_COLUMN = 0;
+const HOME_ROW_OFFSETS = [0, -1, 1, -2] as const;
+/** One home cell per operator, so the team size is capped by the floor plan. */
+export const MAX_OPERATORS = DOCK_ROWS.length * HOME_ROW_OFFSETS.length;
 /** Left column of each back-to-back rack pair; the columns between pairs are aisles. */
 const RACK_PAIR_COLUMNS = [7, 10, 13, 16] as const;
 /** Inclusive row ranges filled with racks; the rows around them are cross-aisles. */
@@ -31,6 +36,8 @@ export interface Warehouse {
   readonly outboundDocks: readonly Point[];
   /** Columns along each side wall reserved as the receiving / dispatch staging area. */
   readonly dockZoneColumns: number;
+  /** Where each operator starts and waits when idle, indexed by operator id. */
+  readonly operatorHomes: readonly Point[];
 }
 
 export function createWarehouse(): Warehouse {
@@ -54,5 +61,9 @@ export function createWarehouse(): Warehouse {
     inboundDocks: DOCK_ROWS.map((y) => ({ x: INBOUND_COLUMN, y })),
     outboundDocks: DOCK_ROWS.map((y) => ({ x: OUTBOUND_COLUMN, y })),
     dockZoneColumns: DOCK_ZONE_COLUMNS,
+    // Spread across the docks first, so a small team starts near every door.
+    operatorHomes: HOME_ROW_OFFSETS.flatMap((offset) =>
+      DOCK_ROWS.map((row) => ({ x: HOME_COLUMN, y: row + offset })),
+    ),
   };
 }

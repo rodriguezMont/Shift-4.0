@@ -49,7 +49,7 @@ Goal: one level playable end to end with human operators only.
 - ✅ 1.1 Level configuration format; shift clock (06:00–14:00); speed 1×/2×/4× and pause
 - ✅ 1.2 Seeded scenario generator: truck arrivals, orders with deadlines, items with
   true attributes
-- ⬜ 1.3 Several operators and aisle congestion
+- ✅ 1.3 Several operators and aisle congestion
 - ✅ 1.4a Receiving: trucks queue for docks, operators unload their real boxes, trucks
   leave when empty; dock wait time
 - ⬜ 1.4b Picking and dispatch: orders pulled from stock and shipped within deadline

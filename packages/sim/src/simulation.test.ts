@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { at, manhattanDistance } from './geometry';
+import { at, manhattanDistance, samePoint } from './geometry';
 import { isWalkable } from './grid';
+import { MAX_OPERATORS } from './layout';
+import { OPERATOR_SPEED, SIDESTEP_AFTER_TICKS } from './movement';
 import {
   createInitialState,
   operatorPosition,
   step,
-  OPERATOR_SPEED,
+  type Operator,
   type SimState,
 } from './simulation';
 import { testWorld, TEST_SHIFT_TICKS } from './testing';
@@ -110,6 +112,48 @@ describe('simulation', () => {
       const reserved = state.operators.flatMap((o) => (o.task ? [o.task.slotId] : []));
       expect(new Set(reserved).size).toBe(reserved.length);
     }
+  });
+});
+
+describe('aisle traffic', () => {
+  const cellsTaken = (operator: Operator) =>
+    [operator.from, operator.to]
+      .filter((cell, index) => index === 0 || !samePoint(cell, operator.from))
+      .map((cell) => `${String(cell.x)},${String(cell.y)}`);
+
+  it.each([4, 8, MAX_OPERATORS])('never puts two of %i operators in the same cell', (count) => {
+    for (const state of run(testWorld({ seed: 31, operators: count }))) {
+      const taken = state.operators.flatMap(cellsTaken);
+      expect(new Set(taken).size).toBe(taken.length);
+    }
+  });
+
+  it('never leaves anyone stuck: everyone keeps working through a crowded shift', () => {
+    const states = run(testWorld({ seed: 31, operators: MAX_OPERATORS }));
+    const longestWait = Math.max(...states.flatMap((s) => s.operators.map((o) => o.blockedTicks)));
+    expect(longestWait).toBeLessThan(SIDESTEP_AFTER_TICKS * 3);
+    const final = at(states, states.length - 1);
+    expect(final.stats.putaways + final.stats.dispatches).toBeGreaterThan(MAX_OPERATORS * 3);
+  });
+
+  it('costs more time to congestion as the team grows', () => {
+    const lostPerOperator = (count: number) => {
+      const final = at(run(testWorld({ seed: 31, operators: count })), TEST_SHIFT_TICKS);
+      return final.stats.congestionTicks / count;
+    };
+    expect(lostPerOperator(MAX_OPERATORS)).toBeGreaterThan(lostPerOperator(2));
+  });
+
+  it('starts everyone at their own home and keeps idle operators there', () => {
+    const world = testWorld({
+      operators: 6,
+      scenario: { initialStock: 0, trucks: { count: 0, boxes: [1, 1], peaks: [] } },
+    });
+    const final = at(run(world, 200), 200);
+    final.operators.forEach((operator) => {
+      expect(operator.from).toEqual(world.warehouse.operatorHomes[operator.id]);
+      expect(operator.phase).toBe('idle');
+    });
   });
 });
 
