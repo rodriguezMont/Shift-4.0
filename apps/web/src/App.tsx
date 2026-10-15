@@ -5,6 +5,7 @@ import { Hud, type View } from './hud/Hud';
 import { ShiftComplete } from './hud/ShiftComplete';
 import { WarehouseScene } from './scene/WarehouseScene';
 import { RunnerContext } from './simulation/context';
+import { withDevOverrides } from './simulation/devOverrides';
 import { SimulationRunner, SPEEDS } from './simulation/runner';
 
 const FIRST_LEVEL = LEVELS[0];
@@ -12,7 +13,7 @@ const FIRST_LEVEL = LEVELS[0];
 export function App() {
   const [runner] = useState(() => {
     if (FIRST_LEVEL === undefined) throw new Error('No levels are defined');
-    return new SimulationRunner(FIRST_LEVEL);
+    return new SimulationRunner(withDevOverrides(FIRST_LEVEL));
   });
   const [view, setView] = useState<View>('scene');
   const toggleView = useCallback(() => {
