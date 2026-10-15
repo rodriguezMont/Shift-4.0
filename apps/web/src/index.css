@@ -145,3 +145,7 @@ body {
   transform: translate(-50%, -50%);
   box-shadow: 0 12px 32px rgb(29 36 48 / 0.16);
 }
+
+.hud-next {
+  color: var(--color-muted);
+}
