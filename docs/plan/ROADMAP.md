@@ -54,7 +54,7 @@ Goal: one level playable end to end with human operators only.
 - ✅ 1.3 Several operators and aisle congestion
 - ✅ 1.4a Receiving: trucks queue for docks, operators unload their real boxes, trucks
   leave when empty; dock wait time
-- ⬜ 1.4b Picking and dispatch: orders pulled from stock and shipped within deadline
+- ✅ 1.4b Picking and dispatch: orders pulled from stock and shipped within deadline
 - ⬜ 1.5 Operator fatigue and rest
 - ⬜ 1.6 Economy — wallet separate from score — salaries, penalties, star thresholds
 - ⬜ 1.7 Player actions (hire and dismiss, with arrival delay) recorded in an action
