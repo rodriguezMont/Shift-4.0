@@ -8,6 +8,57 @@ maintainer's global rules (Conventional Commits in English, branch/PR flow,
 messages, PR text, docs, this file — is read by recruiters, companies and other
 engineers. Write accordingly.
 
+## Start here
+
+**This index exists so you do not read what you do not need.** At the start of a
+session, read `STATUS.md` first; open the rest only when it answers your question.
+
+| I need to know                 | Read                                                              |
+| ------------------------------ | ----------------------------------------------------------------- |
+| **where we are, what is next** | [docs/plan/STATUS.md](docs/plan/STATUS.md) — short, read it first |
+| the plan, stage by stage       | [docs/plan/ROADMAP.md](docs/plan/ROADMAP.md)                      |
+| what the product is and why    | [docs/product/one-pager.md](docs/product/one-pager.md)            |
+| how to run it                  | [README.md](README.md)                                            |
+| decisions already taken        | ROADMAP → _Decisions_; ADRs in `docs/decisions/` once they exist  |
+
+## Code map
+
+`packages/sim/src` — the simulation, one concern per module:
+
+| Module                                 | Owns                                                                           |
+| -------------------------------------- | ------------------------------------------------------------------------------ |
+| `level.ts`                             | Level file schema (Zod) → `LevelConfig`; levels live in `packages/sim/levels/` |
+| `scenario.ts`                          | Seeded plan of the day: stock, trucks, orders, items with true attributes      |
+| `layout.ts`                            | The single floor plan: racks, slots, docks, operator homes                     |
+| `simulation.ts`                        | `SimState`, `step()`, operator phases and the baseline task policy             |
+| `movement.ts`                          | Walking through traffic: occupancy, waiting, detours, giving way               |
+| `receiving.ts`                         | Inbound docks, truck queue, unloading, which dock to free next                 |
+| `orders.ts`                            | Order progress, earliest-deadline-first picking, on-time / late / missed       |
+| `fatigue.ts`                           | Operator energy, tired walking speed, break thresholds                         |
+| `clock.ts`, `rng.ts`, `pathfinding.ts` | Shift time, seeded random streams, A\*                                         |
+
+`apps/web/src` — `simulation/runner.ts` drives fixed ticks and interpolation;
+`scene/` draws the 3D floor (trucks, signals, operators); `hud/` is the panel;
+`debug/` is the 2D ground-truth view.
+
+## How a roadmap step is delivered
+
+1. Sync `main`, create `<type>/<short-description>`, and explain the design briefly
+   before coding when the step introduces a new mechanic.
+2. Implement in the simulation first, with tests; then the view.
+3. Verify: `npm run check`, `npm run build`, and the running app in a browser —
+   report measured numbers (e.g. a shift's outcome for 2, 6 and 12 operators).
+4. Run `/code-review`; fix or explain each finding.
+5. Update `ROADMAP.md` (mark the step) and rewrite `STATUS.md`.
+6. Stop and wait for the maintainer's validation. Then commit in focused commits,
+   push, and open a draft PR with the template. After the merge: sync `main` and
+   delete the branch locally.
+
+**Verification notes.** The Vite dev server on Windows can miss rapid file edits and
+serve a stale module — restart it before measuring if behaviour looks wrong. A
+browser tab that is hidden pauses `requestAnimationFrame`, so the simulation does not
+advance there; measure in a visible or headless browser.
+
 ## Mindset — senior engineering
 
 You are working as a **senior engineer**, not an order-taker.
@@ -95,6 +146,7 @@ You are working as a **senior engineer**, not an order-taker.
 ```bash
 npm install          # install all workspaces
 npm run dev          # web app at http://localhost:5173 (press D for the debug view)
+                     # dev only: ?operators=N (1-12) overrides the level's team size
 npm run check        # type-check + lint + format check + tests
 npm run build        # production build
 npm test             # simulation test suite only

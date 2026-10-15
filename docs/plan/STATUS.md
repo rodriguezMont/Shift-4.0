@@ -1,6 +1,6 @@
 # Status
 
-_Rewritten at the end of each step — current state only. Last update: 2026-10-15._
+_Rewritten at the end of each step — current state only. Last update: 2026-10-15, after step 1.5._
 
 ## Where we are
 
@@ -35,12 +35,24 @@ at once and output collapses for a while.
 
 In development, `?operators=N` overrides the team size; production ignores it.
 
-## Next
+## Next — resume here
 
-1. **1.6** Economy — wallet separate from score — salaries, penalties, star
-   thresholds.
-2. **1.7** Player actions (hire and dismiss) recorded in an action log.
-3. **1.8** Baseline policy and automated balance tests.
+Everything above is merged into `main` (PRs #1–#10). The next step is **1.6, the
+economy**. What is already decided for it (see the one-pager and roadmap decisions):
+
+- **Wallet and score are separate.** The score counts only what the operation
+  delivered (orders shipped, on time weighing more than late) and never goes down;
+  the wallet pays salaries and purchases. Investing never lowers the score.
+- **Costs and penalties:** salaries per operator per minute of shift; penalties for
+  late and missed orders and for trucks kept waiting at the docks.
+- **Stars:** 1–3 per level from score thresholds set in the level file; one star
+  unlocks the next level. Each level must be winnable with one star by its starting
+  team (enforced later by balance tests, 1.8 / 2.6).
+- Keep values in level files and constants, not in the view; show wallet, score and
+  stars in the HUD and the end-of-shift summary.
+
+After 1.6: **1.7** player actions (hire and dismiss, with arrival delay) recorded in
+an action log, then **1.8** baseline policy and automated balance tests.
 
 ## Open decisions
 
