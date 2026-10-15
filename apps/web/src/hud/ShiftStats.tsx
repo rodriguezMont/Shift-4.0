@@ -13,6 +13,9 @@ export function ShiftStats() {
   const lostInAisles = stats.congestionTicks * minutes;
   // Released but not shipped: still open during the shift, missed once it is over.
   const open = openOrderCount(world.scenario, orders, tick);
+  const onBreak = operators.filter((operator) => operator.phase === 'resting').length;
+  const averageEnergy =
+    operators.reduce((sum, operator) => sum + operator.energy, 0) / Math.max(operators.length, 1);
 
   return (
     <dl>
@@ -25,7 +28,14 @@ export function ShiftStats() {
       <dt>{finished ? 'Missed orders' : 'Open orders'}</dt>
       <dd>{open}</dd>
       <dt>Operators</dt>
-      <dd>{operators.length}</dd>
+      <dd>
+        {operators.length}
+        {onBreak > 0 && <span className="hud-next"> · {onBreak} on break</span>}
+      </dd>
+      <dt>Avg energy</dt>
+      <dd>{Math.round(averageEnergy * 100)}%</dd>
+      <dt>Break time</dt>
+      <dd>{Math.round(stats.breakTicks * minutes)} min</dd>
       <dt>Trucks unloaded</dt>
       <dd>{stats.trucksUnloaded}</dd>
       <dt>Avg dock wait</dt>

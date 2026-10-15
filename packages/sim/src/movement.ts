@@ -116,13 +116,15 @@ export function routeTo(
 /**
  * Moves a walker one tick through traffic. It never enters an occupied cell: it waits,
  * looks for a detour every few blocked ticks, and eventually steps aside.
- * `occupancy` must not include the walker itself.
+ * `occupancy` must not include the walker itself. `speed` is in cells per tick, at most
+ * `OPERATOR_SPEED` (a tired walker is slower).
  */
 export function advance<T extends Walker>(
   walker: T,
   grid: Grid,
   occupancy: Occupancy,
   rng: number,
+  speed: number = OPERATOR_SPEED,
 ): { walker: T; rng: number } {
   let current = walker;
   let state = rng;
@@ -135,10 +137,10 @@ export function advance<T extends Walker>(
       current = detour(current, grid, occupancy);
     }
   }
-  return { walker: walk(current, occupancy), rng: state };
+  return { walker: walk(current, occupancy, speed), rng: state };
 }
 
-function walk<T extends Walker>(walker: T, occupancy: Occupancy): T {
+function walk<T extends Walker>(walker: T, occupancy: Occupancy, speed: number): T {
   let { from, to, path } = walker;
   let progress = walker.progress;
 
@@ -152,7 +154,7 @@ function walk<T extends Walker>(walker: T, occupancy: Occupancy): T {
     progress = 0;
   }
 
-  progress += OPERATOR_SPEED;
+  progress += speed;
   while (progress >= 1) {
     from = to;
     const [next, ...rest] = path;

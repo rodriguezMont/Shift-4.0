@@ -51,3 +51,4 @@ export {
   type OrderOutcome,
   type OrderProgress,
 } from './orders';
+export { needsRest, RESUME_AT, REST_BELOW, speedFactor } from './fatigue';
