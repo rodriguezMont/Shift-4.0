@@ -16,6 +16,12 @@ export function shiftClock(level: LevelConfig, tick: number): ShiftClock {
   return { minuteOfDay: startMinute + (endMinute - startMinute) * progress, progress };
 }
 
+/** In-game minutes that pass per tick, for turning tick counts into durations. */
+export function minutesPerTick(level: LevelConfig): number {
+  const { startMinute, endMinute, durationTicks } = level.shift;
+  return (endMinute - startMinute) / durationTicks;
+}
+
 /** Inverse of `shiftClock`: the tick at which the shift reaches `minuteOfDay` (clamped). */
 export function tickAtMinute(level: LevelConfig, minuteOfDay: number): number {
   const { startMinute, endMinute, durationTicks } = level.shift;

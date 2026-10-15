@@ -19,6 +19,13 @@ const MAX_FRAME_SECONDS = 0.25;
 export const SPEEDS = [1, 2, 4] as const;
 export type Speed = (typeof SPEEDS)[number];
 
+export interface Frame {
+  readonly previous: SimState;
+  readonly current: SimState;
+  /** Fraction of a tick elapsed since `current`, in [0, 1). */
+  readonly alpha: number;
+}
+
 /** Player-facing playback state. Replaced (never mutated) on change, for React snapshots. */
 export interface Playback {
   readonly speed: Speed;
@@ -92,13 +99,22 @@ export class SimulationRunner {
     return () => this.listeners.delete(listener);
   };
 
+  /** The last two ticks and how far the display is between them, for smooth rendering. */
+  frame(): Frame {
+    return {
+      previous: this.previous,
+      current: this.current,
+      alpha: this.accumulator / TICK_SECONDS,
+    };
+  }
+
   /** Operator position smoothed between the last two ticks. */
   operatorAt(index: number): Point | null {
-    const current = this.current.operators[index];
-    if (current === undefined) return null;
-    const from = operatorPosition(this.previous.operators[index] ?? current);
-    const to = operatorPosition(current);
-    const alpha = this.accumulator / TICK_SECONDS;
+    const { previous, current, alpha } = this.frame();
+    const now = current.operators[index];
+    if (now === undefined) return null;
+    const from = operatorPosition(previous.operators[index] ?? now);
+    const to = operatorPosition(now);
     return { x: from.x + (to.x - from.x) * alpha, y: from.y + (to.y - from.y) * alpha };
   }
 

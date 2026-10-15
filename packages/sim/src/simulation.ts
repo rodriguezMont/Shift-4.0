@@ -2,6 +2,14 @@ import { isShiftOver } from './clock';
 import { at, samePoint, type Point } from './geometry';
 import type { Warehouse } from './layout';
 import { findPath } from './pathfinding';
+import {
+  claimBox,
+  createReceiving,
+  hasBoxToUnload,
+  liftBox,
+  stepReceiving,
+  type Receiving,
+} from './receiving';
 import { deriveSeed, nextRandom, randomInt } from './rng';
 import type { World } from './world';
 
@@ -19,14 +27,27 @@ const SIMULATION_STREAM = 0;
  */
 export type SlotStatus = 'empty' | 'incoming' | 'stored' | 'outgoing';
 
-export type TaskKind = 'putaway' | 'dispatch';
+/** Unload one box from a docked truck and store it in a slot. */
+export interface PutawayTask {
+  readonly kind: 'putaway';
+  readonly slotId: number;
+  readonly itemId: number;
+  /** Inbound dock index the box is collected from. */
+  readonly dock: number;
+  readonly pickup: Point;
+  readonly dropoff: Point;
+}
 
-export interface Task {
-  readonly kind: TaskKind;
+/** Take a stored box to an outbound dock. Placeholder until orders drive dispatch (1.4b). */
+export interface DispatchTask {
+  readonly kind: 'dispatch';
   readonly slotId: number;
   readonly pickup: Point;
   readonly dropoff: Point;
 }
+
+export type Task = PutawayTask | DispatchTask;
+export type TaskKind = Task['kind'];
 
 export type OperatorPhase = 'idle' | 'toPickup' | 'picking' | 'toDropoff' | 'dropping';
 
@@ -49,6 +70,9 @@ export interface Operator {
 export interface SimStats {
   readonly putaways: number;
   readonly dispatches: number;
+  readonly trucksUnloaded: number;
+  /** Sum over ticks of trucks waiting for a dock; divide by trucks for the average wait. */
+  readonly dockWaitTicks: number;
 }
 
 /** Everything that changes during a run. Plain data: serialisable and comparable. */
@@ -57,11 +81,12 @@ export interface SimState {
   readonly rng: number;
   readonly operators: readonly Operator[];
   readonly slots: readonly SlotStatus[];
+  readonly receiving: Receiving;
   readonly stats: SimStats;
 }
 
 /** The part of the state every operator update reads and may change. */
-type Shared = Pick<SimState, 'rng' | 'slots' | 'stats'>;
+type Shared = Pick<SimState, 'rng' | 'slots' | 'receiving' | 'stats'>;
 
 /** The state at the start of the level's shift, fully determined by the level and its seed. */
 export function createInitialState({ warehouse, level, scenario }: World): SimState {
@@ -83,17 +108,34 @@ export function createInitialState({ warehouse, level, scenario }: World): SimSt
     };
   });
 
-  const rng = deriveSeed(level.seed, SIMULATION_STREAM);
-  return { tick: 0, rng, operators, slots, stats: { putaways: 0, dispatches: 0 } };
+  return {
+    tick: 0,
+    rng: deriveSeed(level.seed, SIMULATION_STREAM),
+    operators,
+    slots,
+    receiving: createReceiving(warehouse.inboundDocks.length),
+    stats: { putaways: 0, dispatches: 0, trucksUnloaded: 0, dockWaitTicks: 0 },
+  };
 }
 
 /**
  * Advances the simulation by one fixed tick. Pure: the input state is never mutated.
  * Once the shift is over the state is final and is returned unchanged.
  */
-export function step({ warehouse, level }: World, state: SimState): SimState {
+export function step({ warehouse, level, scenario }: World, state: SimState): SimState {
   if (isShiftOver(level, state.tick)) return state;
-  let shared: Shared = { rng: state.rng, slots: state.slots, stats: state.stats };
+
+  const inbound = stepReceiving(scenario, state.receiving, state.tick);
+  let shared: Shared = {
+    rng: state.rng,
+    slots: state.slots,
+    receiving: inbound.receiving,
+    stats: {
+      ...state.stats,
+      trucksUnloaded: state.stats.trucksUnloaded + inbound.trucksUnloaded,
+      dockWaitTicks: state.stats.dockWaitTicks + inbound.receiving.queue.length,
+    },
+  };
   const operators = state.operators.map((operator) => {
     let next: Operator;
     [next, shared] = stepOperator(warehouse, operator, shared);
@@ -130,8 +172,10 @@ function stepOperator(
       if (operator.waitTicks > 1)
         return [{ ...operator, waitTicks: operator.waitTicks - 1 }, shared];
       const task = currentTask(operator);
-      const slots =
-        task.kind === 'dispatch' ? withSlot(shared.slots, task.slotId, 'empty') : shared.slots;
+      const picked: Shared =
+        task.kind === 'putaway'
+          ? { ...shared, receiving: liftBox(shared.receiving, task.dock) }
+          : { ...shared, slots: withSlot(shared.slots, task.slotId, 'empty') };
       return [
         {
           ...operator,
@@ -140,7 +184,7 @@ function stepOperator(
           carrying: true,
           waitTicks: 0,
         },
-        { ...shared, slots },
+        picked,
       ];
     }
 
@@ -148,15 +192,15 @@ function stepOperator(
       if (operator.waitTicks > 1)
         return [{ ...operator, waitTicks: operator.waitTicks - 1 }, shared];
       const task = currentTask(operator);
-      const { putaways, dispatches } = shared.stats;
+      const { stats } = shared;
       const done: Shared =
         task.kind === 'putaway'
           ? {
               ...shared,
               slots: withSlot(shared.slots, task.slotId, 'stored'),
-              stats: { putaways: putaways + 1, dispatches },
+              stats: { ...stats, putaways: stats.putaways + 1 },
             }
-          : { ...shared, stats: { putaways, dispatches: dispatches + 1 } };
+          : { ...shared, stats: { ...stats, dispatches: stats.dispatches + 1 } };
       return [{ ...operator, phase: 'idle', task: null, carrying: false, waitTicks: 0 }, done];
     }
   }
@@ -166,40 +210,58 @@ function assignTask(warehouse: Warehouse, operator: Operator, shared: Shared): [
   const drawn = drawTask(warehouse, shared);
   if (drawn === null) return [operator, shared];
 
-  const { task, rng } = drawn;
+  const { task, next } = drawn;
   const reservation: SlotStatus = task.kind === 'putaway' ? 'incoming' : 'outgoing';
   return [
     { ...operator, ...routeTo(warehouse, operator.from, task.pickup), phase: 'toPickup', task },
-    { ...shared, rng, slots: withSlot(shared.slots, task.slotId, reservation) },
+    { ...next, slots: withSlot(next.slots, task.slotId, reservation) },
   ];
 }
 
 /**
- * Baseline policy: a random free or stored slot and a random dock. This is the
- * "no automation" reference later decision engines will be measured against.
+ * Baseline policy: unload a docked truck into a random free slot, or ship a random
+ * stored box. This is the "no automation" reference later decision engines are
+ * measured against.
  */
-function drawTask(warehouse: Warehouse, shared: Shared): { task: Task; rng: number } | null {
+function drawTask(warehouse: Warehouse, shared: Shared): { task: Task; next: Shared } | null {
   const empty = slotIdsWith(shared.slots, 'empty');
   const stored = slotIdsWith(shared.slots, 'stored');
-  if (empty.length === 0 && stored.length === 0) return null;
+  const canUnload = empty.length > 0 && hasBoxToUnload(shared.receiving);
+  if (!canUnload && stored.length === 0) return null;
 
   const [roll, afterRoll] = nextRandom(shared.rng);
-  const kind: TaskKind =
-    empty.length === 0 || (stored.length > 0 && roll < DISPATCH_PROBABILITY)
-      ? 'dispatch'
-      : 'putaway';
-  const candidates = kind === 'dispatch' ? stored : empty;
-  const [slotPick, afterSlot] = randomInt(afterRoll, candidates.length);
-  const slot = at(warehouse.slots, at(candidates, slotPick));
+  const claim =
+    canUnload && (stored.length === 0 || roll >= DISPATCH_PROBABILITY)
+      ? claimBox(shared.receiving)
+      : null;
+  if (claim !== null) {
+    const [slotPick, rng] = randomInt(afterRoll, empty.length);
+    const slot = at(warehouse.slots, at(empty, slotPick));
+    return {
+      task: {
+        kind: 'putaway',
+        slotId: slot.id,
+        itemId: claim.itemId,
+        dock: claim.dock,
+        pickup: at(warehouse.inboundDocks, claim.dock),
+        dropoff: slot.access,
+      },
+      next: { ...shared, rng, receiving: claim.receiving },
+    };
+  }
 
-  const docks = kind === 'putaway' ? warehouse.inboundDocks : warehouse.outboundDocks;
-  const [dockPick, rng] = randomInt(afterSlot, docks.length);
-  const dock = at(docks, dockPick);
-  const task: Task =
-    kind === 'putaway'
-      ? { kind, slotId: slot.id, pickup: dock, dropoff: slot.access }
-      : { kind, slotId: slot.id, pickup: slot.access, dropoff: dock };
-  return { task, rng };
+  const [slotPick, afterSlot] = randomInt(afterRoll, stored.length);
+  const slot = at(warehouse.slots, at(stored, slotPick));
+  const [dockPick, rng] = randomInt(afterSlot, warehouse.outboundDocks.length);
+  return {
+    task: {
+      kind: 'dispatch',
+      slotId: slot.id,
+      pickup: slot.access,
+      dropoff: at(warehouse.outboundDocks, dockPick),
+    },
+    next: { ...shared, rng },
+  };
 }
 
 function walk(operator: Operator): Operator {
