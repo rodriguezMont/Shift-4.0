@@ -10,7 +10,7 @@ one or more small pull requests. Product context lives in the
 | Stage                           | Outcome                                                                  | Estimate | Status |
 | ------------------------------- | ------------------------------------------------------------------------ | -------- | ------ |
 | 0. Foundation                   | Repository, CI, deterministic simulation core, isometric floor prototype | —        | ✅     |
-| 1. Game core                    | One level playable end to end with humans only, scored and starred       | ~1 week  | ⬜     |
+| 1. Game core                    | One level playable end to end with humans only, scored and starred       | ~1 week  | 🔄     |
 | 2. Industry 4.0, locally        | AI Analyst, robots and decisions behind an interface, rules engine only  | ~5 days  | ⬜     |
 | 3. Jev in production            | Decision service, worker, cache, decision log, spend limits, evaluation  | ~1 week  | ⬜     |
 | 4. Accounts, progress, rankings | Anonymous play, Google/GitHub linking, server-validated scores           | ~1 week  | ⬜     |
@@ -42,11 +42,11 @@ ships before rankings if something has to slip.
 - ✅ 0.5 `CLAUDE.md` with engineering, architecture and public-repository rules
 - ✅ 0.6 Product one-pager, roadmap and status
 
-## Stage 1 — Game core
+## Stage 1 — Game core 🔄
 
 Goal: one level playable end to end with human operators only.
 
-- ⬜ 1.1 Level configuration format; shift clock (06:00–14:00); speed 1×/2×/4× and pause
+- ✅ 1.1 Level configuration format; shift clock (06:00–14:00); speed 1×/2×/4× and pause
 - ⬜ 1.2 Seeded scenario generator: truck arrivals, orders with deadlines, items with
   true attributes
 - ⬜ 1.3 Several operators and aisle congestion

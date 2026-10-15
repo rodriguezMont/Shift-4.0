@@ -1,9 +1,10 @@
+import { isShiftOver } from './clock';
 import { at, samePoint, type Point } from './geometry';
 import type { Warehouse } from './layout';
 import { findPath } from './pathfinding';
 import { nextRandom, randomInt } from './rng';
+import type { World } from './world';
 
-export const TICKS_PER_SECOND = 10;
 /** Cells walked per tick (2.5 cells/s at 10 ticks/s). Must stay below 1. */
 export const OPERATOR_SPEED = 0.25;
 export const PICK_TICKS = 8;
@@ -58,26 +59,19 @@ export interface SimState {
   readonly stats: SimStats;
 }
 
-export interface SimOptions {
-  readonly seed: number;
-  readonly operatorCount?: number;
-}
-
 /** The part of the state every operator update reads and may change. */
 type Shared = Pick<SimState, 'rng' | 'slots' | 'stats'>;
 
-export function createInitialState(
-  warehouse: Warehouse,
-  { seed, operatorCount = 1 }: SimOptions,
-): SimState {
-  let rng = seed | 0;
+/** The state at the start of the level's shift, fully determined by the level and its seed. */
+export function createInitialState({ warehouse, level }: World): SimState {
+  let rng = level.seed | 0;
   const slots = warehouse.slots.map((): SlotStatus => {
     const [roll, next] = nextRandom(rng);
     rng = next;
     return roll < INITIAL_FILL_RATIO ? 'stored' : 'empty';
   });
 
-  const operators = Array.from({ length: operatorCount }, (_, id): Operator => {
+  const operators = Array.from({ length: level.team.operators }, (_, id): Operator => {
     const spawn = at(warehouse.inboundDocks, id % warehouse.inboundDocks.length);
     return {
       id,
@@ -95,8 +89,12 @@ export function createInitialState(
   return { tick: 0, rng, operators, slots, stats: { putaways: 0, dispatches: 0 } };
 }
 
-/** Advances the simulation by one fixed tick. Pure: the input state is never mutated. */
-export function step(warehouse: Warehouse, state: SimState): SimState {
+/**
+ * Advances the simulation by one fixed tick. Pure: the input state is never mutated.
+ * Once the shift is over the state is final and is returned unchanged.
+ */
+export function step({ warehouse, level }: World, state: SimState): SimState {
+  if (isShiftOver(level, state.tick)) return state;
   let shared: Shared = { rng: state.rng, slots: state.slots, stats: state.stats };
   const operators = state.operators.map((operator) => {
     let next: Operator;
