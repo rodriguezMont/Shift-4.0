@@ -24,10 +24,18 @@ function compareNodes(a: OpenNode, b: OpenNode): number {
 /**
  * Shortest 4-connected path using A* with a Manhattan heuristic.
  *
+ * `isBlocked` adds temporary obstacles on top of the grid (e.g. other workers); it is
+ * never applied to `goal`, so a route can lead up to a cell someone is standing on.
+ *
  * @returns the cells to walk, excluding `start` and including `goal` (empty when they
  * coincide), or `null` when either end is blocked or the goal is unreachable.
  */
-export function findPath(grid: Grid, start: Point, goal: Point): Point[] | null {
+export function findPath(
+  grid: Grid,
+  start: Point,
+  goal: Point,
+  isBlocked: (cell: Point) => boolean = () => false,
+): Point[] | null {
   if (!isWalkable(grid, start) || !isWalkable(grid, goal)) return null;
 
   const startIndex = cellIndex(grid, start);
@@ -50,8 +58,9 @@ export function findPath(grid: Grid, start: Point, goal: Point): Point[] | null 
     for (const offset of NEIGHBOR_OFFSETS) {
       const neighbor = { x: current.x + offset.x, y: current.y + offset.y };
       if (!isWalkable(grid, neighbor)) continue;
-
       const neighborIndex = cellIndex(grid, neighbor);
+      if (neighborIndex !== goalIndex && isBlocked(neighbor)) continue;
+
       const g = node.g + 1;
       if (g >= (bestG[neighborIndex] ?? Infinity)) continue;
 
