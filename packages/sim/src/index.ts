@@ -8,9 +8,10 @@ export {
 } from './clock';
 export { samePoint, type Point } from './geometry';
 export { isWalkable, type Grid } from './grid';
-export { createWarehouse, type Slot, type Warehouse } from './layout';
+export { createWarehouse, MAX_OPERATORS, type Slot, type Warehouse } from './layout';
 export { parseLevel, type LevelConfig } from './level';
 export { LEVELS } from './levels';
+export { OPERATOR_SPEED, type Walker } from './movement';
 export { findPath } from './pathfinding';
 export {
   generateScenario,
@@ -24,7 +25,6 @@ export {
   createInitialState,
   operatorPosition,
   step,
-  OPERATOR_SPEED,
   type Operator,
   type OperatorPhase,
   type DispatchTask,

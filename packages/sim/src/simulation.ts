@@ -1,7 +1,16 @@
 import { isShiftOver } from './clock';
 import { at, samePoint, type Point } from './geometry';
 import type { Warehouse } from './layout';
-import { findPath } from './pathfinding';
+import {
+  advance,
+  hasArrived,
+  isHeldUp,
+  isMoving,
+  Occupancy,
+  routeTo,
+  walkerPosition,
+  type Walker,
+} from './movement';
 import {
   claimBox,
   createReceiving,
@@ -13,8 +22,6 @@ import {
 import { deriveSeed, nextRandom, randomInt } from './rng';
 import type { World } from './world';
 
-/** Cells walked per tick (2.5 cells/s at 10 ticks/s). Must stay below 1. */
-export const OPERATOR_SPEED = 0.25;
 export const PICK_TICKS = 8;
 export const DROP_TICKS = 8;
 const DISPATCH_PROBABILITY = 0.4;
@@ -49,18 +56,12 @@ export interface DispatchTask {
 export type Task = PutawayTask | DispatchTask;
 export type TaskKind = Task['kind'];
 
-export type OperatorPhase = 'idle' | 'toPickup' | 'picking' | 'toDropoff' | 'dropping';
+/** `returning`: no work available, walking back to the operator's home cell. */
+export type OperatorPhase =
+  'idle' | 'returning' | 'toPickup' | 'picking' | 'toDropoff' | 'dropping';
 
-export interface Operator {
+export interface Operator extends Walker {
   readonly id: number;
-  /** Cell being left, or the cell stood on when not moving. */
-  readonly from: Point;
-  /** Cell being walked to; equals `from` when not moving. */
-  readonly to: Point;
-  /** Progress from `from` to `to`, in [0, 1). */
-  readonly progress: number;
-  /** Cells still to walk after `to`. */
-  readonly path: readonly Point[];
   readonly phase: OperatorPhase;
   readonly task: Task | null;
   readonly carrying: boolean;
@@ -73,6 +74,8 @@ export interface SimStats {
   readonly trucksUnloaded: number;
   /** Sum over ticks of trucks waiting for a dock; divide by trucks for the average wait. */
   readonly dockWaitTicks: number;
+  /** Sum over ticks of operators held up by traffic: blocked, or standing aside to give way. */
+  readonly congestionTicks: number;
 }
 
 /** Everything that changes during a run. Plain data: serialisable and comparable. */
@@ -94,13 +97,15 @@ export function createInitialState({ warehouse, level, scenario }: World): SimSt
   const slots = warehouse.slots.map(({ id }): SlotStatus => (stocked.has(id) ? 'stored' : 'empty'));
 
   const operators = Array.from({ length: level.team.operators }, (_, id): Operator => {
-    const spawn = at(warehouse.inboundDocks, id % warehouse.inboundDocks.length);
+    const home = at(warehouse.operatorHomes, id);
     return {
       id,
-      from: spawn,
-      to: spawn,
+      from: home,
+      to: home,
       progress: 0,
       path: [],
+      blockedTicks: 0,
+      giveWayTicks: 0,
       phase: 'idle',
       task: null,
       carrying: false,
@@ -114,7 +119,13 @@ export function createInitialState({ warehouse, level, scenario }: World): SimSt
     operators,
     slots,
     receiving: createReceiving(warehouse.inboundDocks.length),
-    stats: { putaways: 0, dispatches: 0, trucksUnloaded: 0, dockWaitTicks: 0 },
+    stats: {
+      putaways: 0,
+      dispatches: 0,
+      trucksUnloaded: 0,
+      dockWaitTicks: 0,
+      congestionTicks: 0,
+    },
   };
 }
 
@@ -136,36 +147,64 @@ export function step({ warehouse, level, scenario }: World, state: SimState): Si
       dockWaitTicks: state.stats.dockWaitTicks + inbound.receiving.queue.length,
     },
   };
+
+  // Operators move in id order; each sees the others where they are at that moment.
+  const occupancy = new Occupancy(warehouse.grid, state.operators);
   const operators = state.operators.map((operator) => {
+    occupancy.remove(operator);
     let next: Operator;
-    [next, shared] = stepOperator(warehouse, operator, shared);
+    [next, shared] = stepOperator(warehouse, operator, shared, occupancy);
+    occupancy.add(next);
     return next;
   });
-  return { tick: state.tick + 1, operators, ...shared };
+
+  const heldUp = operators.filter(isHeldUp).length;
+  const stats = { ...shared.stats, congestionTicks: shared.stats.congestionTicks + heldUp };
+  return { tick: state.tick + 1, operators, ...shared, stats };
 }
 
 /** Interpolated position between the cells an operator is walking across. */
 export function operatorPosition(operator: Operator): Point {
-  const { from, to, progress } = operator;
-  return { x: from.x + (to.x - from.x) * progress, y: from.y + (to.y - from.y) * progress };
+  return walkerPosition(operator);
 }
 
 function stepOperator(
   warehouse: Warehouse,
   operator: Operator,
   shared: Shared,
+  occupancy: Occupancy,
 ): [Operator, Shared] {
   switch (operator.phase) {
-    case 'idle':
-      return assignTask(warehouse, operator, shared);
+    case 'idle': {
+      const [assigned, next] = assignTask(warehouse, operator, shared);
+      if (assigned !== operator) return [assigned, next];
+      const home = at(warehouse.operatorHomes, operator.id);
+      if (samePoint(operator.from, home)) return [operator, shared];
+      return [
+        { ...operator, ...routeTo(warehouse.grid, operator.from, home), phase: 'returning' },
+        shared,
+      ];
+    }
+
+    case 'returning': {
+      // Work beats walking home: take a task as soon as one appears.
+      if (!isMoving(operator)) {
+        const [assigned, next] = assignTask(warehouse, operator, shared);
+        if (assigned !== operator) return [assigned, next];
+      }
+      const [walked, next] = move(warehouse, operator, shared, occupancy);
+      return hasArrived(walked) ? [{ ...walked, phase: 'idle' }, next] : [walked, next];
+    }
 
     case 'toPickup':
     case 'toDropoff': {
-      const walked = hasArrived(operator) ? operator : walk(operator);
-      if (!hasArrived(walked)) return [walked, shared];
+      const [walked, next] = hasArrived(operator)
+        ? [operator, shared]
+        : move(warehouse, operator, shared, occupancy);
+      if (!hasArrived(walked)) return [walked, next];
       return operator.phase === 'toPickup'
-        ? [{ ...walked, phase: 'picking', waitTicks: PICK_TICKS }, shared]
-        : [{ ...walked, phase: 'dropping', waitTicks: DROP_TICKS }, shared];
+        ? [{ ...walked, phase: 'picking', waitTicks: PICK_TICKS }, next]
+        : [{ ...walked, phase: 'dropping', waitTicks: DROP_TICKS }, next];
     }
 
     case 'picking': {
@@ -179,7 +218,7 @@ function stepOperator(
       return [
         {
           ...operator,
-          ...routeTo(warehouse, operator.from, task.dropoff),
+          ...routeTo(warehouse.grid, operator.from, task.dropoff),
           phase: 'toDropoff',
           carrying: true,
           waitTicks: 0,
@@ -206,6 +245,17 @@ function stepOperator(
   }
 }
 
+function move(
+  warehouse: Warehouse,
+  operator: Operator,
+  shared: Shared,
+  occupancy: Occupancy,
+): [Operator, Shared] {
+  const { walker, rng } = advance(operator, warehouse.grid, occupancy, shared.rng);
+  return [walker, { ...shared, rng }];
+}
+
+/** @returns the same operator object when no task is available. */
 function assignTask(warehouse: Warehouse, operator: Operator, shared: Shared): [Operator, Shared] {
   const drawn = drawTask(warehouse, shared);
   if (drawn === null) return [operator, shared];
@@ -213,7 +263,12 @@ function assignTask(warehouse: Warehouse, operator: Operator, shared: Shared): [
   const { task, next } = drawn;
   const reservation: SlotStatus = task.kind === 'putaway' ? 'incoming' : 'outgoing';
   return [
-    { ...operator, ...routeTo(warehouse, operator.from, task.pickup), phase: 'toPickup', task },
+    {
+      ...operator,
+      ...routeTo(warehouse.grid, operator.from, task.pickup),
+      phase: 'toPickup',
+      task,
+    },
     { ...next, slots: withSlot(next.slots, task.slotId, reservation) },
   ];
 }
@@ -262,42 +317,6 @@ function drawTask(warehouse: Warehouse, shared: Shared): { task: Task; next: Sha
     },
     next: { ...shared, rng },
   };
-}
-
-function walk(operator: Operator): Operator {
-  let { from, to, path } = operator;
-  let progress = operator.progress + OPERATOR_SPEED;
-  while (progress >= 1) {
-    from = to;
-    const [next, ...rest] = path;
-    if (next === undefined) {
-      progress = 0;
-      break;
-    }
-    to = next;
-    path = rest;
-    progress -= 1;
-  }
-  return { ...operator, from, to, path, progress };
-}
-
-function hasArrived(operator: Operator): boolean {
-  return samePoint(operator.from, operator.to) && operator.path.length === 0;
-}
-
-function routeTo(
-  warehouse: Warehouse,
-  from: Point,
-  target: Point,
-): Pick<Operator, 'to' | 'path' | 'progress'> {
-  const path = findPath(warehouse.grid, from, target);
-  if (path === null) {
-    throw new Error(
-      `No route from (${String(from.x)},${String(from.y)}) to (${String(target.x)},${String(target.y)})`,
-    );
-  }
-  const [first, ...rest] = path;
-  return { to: first ?? from, path: rest, progress: 0 };
 }
 
 function currentTask(operator: Operator): Task {
