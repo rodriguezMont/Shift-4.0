@@ -1,5 +1,5 @@
 import { LEVELS } from '@shift40/sim';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DebugView } from './debug/DebugView';
 import { Hud, type View } from './hud/Hud';
 import { ShiftComplete } from './hud/ShiftComplete';
@@ -7,6 +7,7 @@ import { WarehouseScene } from './scene/WarehouseScene';
 import { RunnerContext } from './simulation/context';
 import { withDevOverrides } from './simulation/devOverrides';
 import { SimulationRunner, SPEEDS } from './simulation/runner';
+import { SelectionContext, type Selection } from './simulation/selection';
 
 const FIRST_LEVEL = LEVELS[0];
 
@@ -16,6 +17,8 @@ export function App() {
     return new SimulationRunner(withDevOverrides(FIRST_LEVEL));
   });
   const [view, setView] = useState<View>('scene');
+  const [operatorId, select] = useState<number | null>(null);
+  const selection = useMemo<Selection>(() => ({ operatorId, select }), [operatorId]);
   const toggleView = useCallback(() => {
     setView((current) => (current === 'scene' ? 'debug' : 'scene'));
   }, []);
@@ -36,6 +39,8 @@ export function App() {
         runner.setSpeed(speed);
       } else if (event.key.toLowerCase() === 'd') {
         toggleView();
+      } else if (event.key === 'Escape') {
+        select(null);
       } else if (event.code === 'Space') {
         event.preventDefault();
         runner.togglePause();
@@ -56,11 +61,13 @@ export function App() {
 
   return (
     <RunnerContext value={runner}>
-      <main className="stage">
-        {view === 'scene' ? <WarehouseScene /> : <DebugView />}
-        <Hud view={view} onToggleView={toggleView} />
-        <ShiftComplete />
-      </main>
+      <SelectionContext value={selection}>
+        <main className="stage">
+          {view === 'scene' ? <WarehouseScene /> : <DebugView />}
+          <Hud view={view} onToggleView={toggleView} />
+          <ShiftComplete />
+        </main>
+      </SelectionContext>
     </RunnerContext>
   );
 }

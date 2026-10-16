@@ -1,8 +1,9 @@
 import { useFrame } from '@react-three/fiber';
-import { REST_BELOW, samePoint } from '@shift40/sim';
-import { useRef } from 'react';
+import { operatorById, REST_BELOW, samePoint } from '@shift40/sim';
+import { useEffect, useRef } from 'react';
 import type { Group, Mesh, MeshBasicMaterial } from 'three';
 import { useRunner, useSimState } from '../simulation/context';
+import { useSelection } from '../simulation/selection';
 import { palette } from '../palette';
 import { toScene } from './coords';
 
@@ -15,6 +16,7 @@ const BAR_HEIGHT = 1.58;
 const BAR_HIDDEN_ABOVE = 0.98;
 /** Below this the bar turns amber; below `REST_BELOW` (break time) it turns red. */
 const TIRED_BELOW = 0.6;
+const SELECTION_COLOR = '#1d2430';
 const ENERGY_COLORS = {
   fresh: '#2fbf71',
   tired: '#ffb300',
@@ -25,14 +27,28 @@ const ENERGY_COLORS = {
 
 export function Operators() {
   const { operators } = useSimState();
-  return operators.map((operator) => <OperatorFigure key={operator.id} index={operator.id} />);
+  const { operatorId, select } = useSelection();
+  return operators.map((operator) => (
+    <OperatorFigure
+      key={operator.id}
+      id={operator.id}
+      selected={operator.id === operatorId}
+      onSelect={select}
+    />
+  ));
+}
+
+interface OperatorFigureProps {
+  readonly id: number;
+  readonly selected: boolean;
+  readonly onSelect: (id: number) => void;
 }
 
 /**
  * Low-poly worker with a stamina bar; position, heading and energy are driven per frame
  * from the runner, not React state.
  */
-function OperatorFigure({ index }: { index: number }) {
+function OperatorFigure({ id, selected, onSelect }: OperatorFigureProps) {
   const runner = useRunner();
   const root = useRef<Group>(null);
   const turn = useRef<Group>(null);
@@ -42,10 +58,17 @@ function OperatorFigure({ index }: { index: number }) {
   const energyFill = useRef<Mesh>(null);
   const energyColor = useRef<MeshBasicMaterial>(null);
   const heading = useRef(0);
+  // A figure removed under the pointer (a dismissed operator leaving) never gets pointer-out.
+  useEffect(
+    () => () => {
+      document.body.style.cursor = '';
+    },
+    [],
+  );
 
   useFrame(({ clock }, delta) => {
-    const operator = runner.getState().operators[index];
-    const position = runner.operatorAt(index);
+    const operator = operatorById(runner.getState().operators, id);
+    const position = runner.operatorAt(id);
     if (!operator || !position || !root.current || !turn.current || !body.current) return;
     if (!carriedBox.current || !energyBar.current || !energyFill.current) return;
 
@@ -74,7 +97,26 @@ function OperatorFigure({ index }: { index: number }) {
   });
 
   return (
-    <group ref={root}>
+    <group
+      ref={root}
+      onClick={(event) => {
+        event.stopPropagation();
+        onSelect(id);
+      }}
+      onPointerOver={(event) => {
+        event.stopPropagation();
+        document.body.style.cursor = 'pointer';
+      }}
+      onPointerOut={() => {
+        document.body.style.cursor = '';
+      }}
+    >
+      {selected && (
+        <mesh rotation-x={-Math.PI / 2} position={[0, 0.02, 0]}>
+          <ringGeometry args={[0.36, 0.46, 32]} />
+          <meshBasicMaterial color={SELECTION_COLOR} toneMapped={false} />
+        </mesh>
+      )}
       {/* Turned to face the camera's horizontal (the isometric view looks along -x-z). */}
       <group ref={energyBar} position={[0, BAR_HEIGHT, 0]} rotation-y={Math.PI / 4} visible={false}>
         <mesh>

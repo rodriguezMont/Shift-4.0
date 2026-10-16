@@ -69,8 +69,8 @@ function drawFrame(context: CanvasRenderingContext2D, runner: SimulationRunner):
     context.fillRect(slot.rack.x * CELL + 1, slot.rack.y * CELL + 1, CELL - 2, CELL - 2);
   }
 
-  state.operators.forEach((operator, index) => {
-    const position = runner.operatorAt(index) ?? operatorPosition(operator);
+  state.operators.forEach((operator) => {
+    const position = runner.operatorAt(operator.id) ?? operatorPosition(operator);
 
     context.strokeStyle = palette.route;
     context.globalAlpha = 0.5;

@@ -18,6 +18,8 @@ const validScenario = {
 
 const validEconomy = {
   startingWallet: 300,
+  hiringFee: 150,
+  dismissalCost: 400,
   salaryPerHour: 15,
   orderRevenue: 100,
   penalties: { overdueOrder: 60, truckWaitPerHour: 30 },
@@ -29,7 +31,7 @@ const validLevel = {
   title: 'Monday',
   seed: 123,
   shift: { start: '06:00', end: '14:00', durationSeconds: 210 },
-  team: { operators: 2 },
+  team: { operators: 2, hireDelayMinutes: 30 },
   scenario: validScenario,
   economy: validEconomy,
 };
@@ -41,7 +43,7 @@ describe('parseLevel', () => {
       title: 'Monday',
       seed: 123,
       shift: { startMinute: 360, endMinute: 840, durationTicks: 210 * TICKS_PER_SECOND },
-      team: { operators: 2 },
+      team: { operators: 2, hireDelayMinutes: 30 },
       scenario: {
         initialStock: 0.3,
         fragileRatio: 0.1,
@@ -65,7 +67,8 @@ describe('parseLevel', () => {
     ['a shift ending before it starts', { shift: { ...validLevel.shift, end: '05:00' } }],
     ['a non-positive duration', { shift: { ...validLevel.shift, durationSeconds: 0 } }],
     ['a duration shorter than a tick', { shift: { ...validLevel.shift, durationSeconds: 0.04 } }],
-    ['an empty team', { team: { operators: 0 } }],
+    ['an empty team', { team: { operators: 0, hireDelayMinutes: 30 } }],
+    ['a negative hiring delay', { team: { operators: 2, hireDelayMinutes: -1 } }],
     ['a non-integer seed', { seed: 1.5 }],
     ['an unknown key', { difficulty: 'hard' }],
     ['a missing scenario', { scenario: undefined }],
@@ -82,6 +85,8 @@ describe('parseLevel', () => {
     ['a fractional amount', withEconomy({ orderRevenue: 99.5 })],
     ['star thresholds that do not rise', withEconomy({ stars: [900, 900, 1500] })],
     ['a missing star threshold', withEconomy({ stars: [200, 900] })],
+    ['a dismissal cheaper than hiring', withEconomy({ dismissalCost: 100 })],
+    ['a dismissal costing the same as hiring', withEconomy({ dismissalCost: 150 })],
   ])('rejects %s', (_, override) => {
     expect(() => parseLevel({ ...validLevel, ...override })).toThrow(/Invalid level/);
   });

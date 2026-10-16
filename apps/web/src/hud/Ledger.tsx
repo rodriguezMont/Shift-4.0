@@ -9,6 +9,8 @@ export function Ledger() {
   const changes: readonly (readonly [label: string, amount: number])[] = [
     ['Revenue', ledger.revenue],
     ['Salaries', -ledger.salaries],
+    ['Hiring', -ledger.hiringFees],
+    ['Dismissals', -ledger.dismissalCosts],
     ['Overdue orders', -ledger.overduePenalties],
     ['Trucks waiting', -ledger.truckWaitPenalties],
   ];

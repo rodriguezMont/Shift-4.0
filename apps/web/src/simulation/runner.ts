@@ -1,10 +1,15 @@
 import {
+  applyAction,
   createInitialState,
   createWorld,
   isShiftOver,
+  operatorById,
   operatorPosition,
   step,
   TICKS_PER_SECOND,
+  type Action,
+  type ActionError,
+  type ActionRequest,
   type LevelConfig,
   type Point,
   type SimState,
@@ -45,6 +50,8 @@ export class SimulationRunner {
   private previous: SimState;
   private current: SimState;
   private playback: Playback = { speed: 1, paused: false, finished: false };
+  /** Every action the player took this run, in order: with the level, it replays the run. */
+  private actions: readonly Action[] = [];
   private accumulator = 0;
   private lastTime: number | null = null;
   private frameId: number | null = null;
@@ -80,8 +87,26 @@ export class SimulationRunner {
     this.updatePlayback({ paused: !this.playback.paused });
   }
 
-  /** Starts the same shift again from its first tick. */
+  /**
+   * Takes a player action on the current tick, paused or not. The simulation validates
+   * it; an accepted action joins the log. @returns why it was refused, or null.
+   */
+  act(request: ActionRequest): ActionError | null {
+    const action: Action = { ...request, tick: this.current.tick };
+    const result = applyAction(this.world, this.current, action);
+    if (!result.ok) return result.error;
+    this.current = result.state;
+    this.actions = [...this.actions, action];
+    this.notify();
+    return null;
+  }
+
+  /** The run's action log so far. */
+  readonly getActions = (): readonly Action[] => this.actions;
+
+  /** Starts the same shift again from its first tick, with an empty action log. */
   restart(): void {
+    this.actions = [];
     this.current = createInitialState(this.world);
     this.previous = this.current;
     this.accumulator = 0;
@@ -108,12 +133,12 @@ export class SimulationRunner {
     };
   }
 
-  /** Operator position smoothed between the last two ticks. */
-  operatorAt(index: number): Point | null {
+  /** Position of the operator with this id, smoothed between the last two ticks. */
+  operatorAt(id: number): Point | null {
     const { previous, current, alpha } = this.frame();
-    const now = current.operators[index];
-    if (now === undefined) return null;
-    const from = operatorPosition(previous.operators[index] ?? now);
+    const now = operatorById(current.operators, id);
+    if (now === null) return null;
+    const from = operatorPosition(operatorById(previous.operators, id) ?? now);
     const to = operatorPosition(now);
     return { x: from.x + (to.x - from.x) * alpha, y: from.y + (to.y - from.y) * alpha };
   }

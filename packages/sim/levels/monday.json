@@ -8,7 +8,8 @@
     "durationSeconds": 210
   },
   "team": {
-    "operators": 2
+    "operators": 2,
+    "hireDelayMinutes": 30
   },
   "scenario": {
     "initialStock": 0.3,
@@ -26,6 +27,8 @@
   },
   "economy": {
     "startingWallet": 300,
+    "hiringFee": 150,
+    "dismissalCost": 400,
     "salaryPerHour": 15,
     "orderRevenue": 100,
     "penalties": {

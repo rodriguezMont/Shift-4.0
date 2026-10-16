@@ -1,4 +1,5 @@
 import { usePlayback, useRunner } from '../simulation/context';
+import { useSelection } from '../simulation/selection';
 import { Ledger } from './Ledger';
 import { Results } from './Results';
 import { ShiftStats } from './ShiftStats';
@@ -7,6 +8,7 @@ import { ShiftStats } from './ShiftStats';
 export function ShiftComplete() {
   const runner = useRunner();
   const { finished } = usePlayback();
+  const { select } = useSelection();
   if (!finished) return null;
 
   return (
@@ -18,6 +20,8 @@ export function ShiftComplete() {
       <button
         type="button"
         onClick={() => {
+          // A new run reuses the starting ids: a kept selection would name someone else.
+          select(null);
           runner.restart();
         }}
       >
