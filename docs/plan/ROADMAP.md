@@ -59,12 +59,16 @@ Goal: one level playable end to end with human operators only.
 - ✅ 1.6 Economy — wallet separate from score — salaries, penalties, star thresholds
 - ✅ 1.7 Player actions (hire and dismiss, with arrival delay) recorded in an action
   log, the basis for replay. Dismissing costs more than hiring; both need cash
-- ⬜ 1.8 Staff and robot areas on the floor plan. Front wall: a canteen (seated meal,
-  long break back to 90%) and a café (standing coffee, short break back to 60%);
-  energy recovers only while eating or drinking, and tired workers spread across
-  free places in both rooms. Back wall: the robot area, built now and activated in
-  Stage 2 — an automated maintenance conveyor with a renewal capsule, and induction
-  charging pads
+- 🔄 1.8 Staff and robot areas
+  - ✅ 1.8a Floor plan and visuals: the plan grows to 26 × 26 with, on the front wall,
+    a canteen (one table, four chairs) and a café (two bistro tables, four standing
+    places), each behind its own door, and on the back wall the robot area — a
+    maintenance conveyor through a renewal capsule and six induction pads — closed
+    off until Stage 2; camera and debug view reframed
+  - ⬜ 1.8b Breaks in the rooms: a canteen meal back to 90% and a café coffee back to
+    60%, energy recovered only while eating or drinking; tired workers reserve a
+    free place in the room with the most free places, and queue at the doors when
+    both are full
 - ⬜ 1.9 Baseline policy and automated balance tests
 
 ## Stage 2 — Industry 4.0, locally

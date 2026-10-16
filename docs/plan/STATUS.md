@@ -1,10 +1,10 @@
 # Status
 
-_Rewritten at the end of each step — current state only. Last update: 2026-10-16, after step 1.7._
+_Rewritten at the end of each step — current state only. Last update: 2026-10-16, after step 1.8a._
 
 ## Where we are
 
-**Stage 1 — Game core: in progress.** Steps 1.1 to 1.7 are done.
+**Stage 1 — Game core: in progress.** Steps 1.1 to 1.7 and 1.8a are done.
 
 - **1.1** Levels are validated JSON files (`packages/sim/levels/`); a run plays a
   figurative 06:00–14:00 shift with 1×/2×/4× speed, pause and restart.
@@ -45,10 +45,21 @@ _Rewritten at the end of each step — current state only. Last update: 2026-10-
   wallet breakdown gains hiring and dismissal lines. Malformed or impossible log
   entries are rejected, ready for the server-side replay (4.4).
 
-Measured on Monday (same seed, no player actions; provisional values: $300 start,
-$15/h salary, $100 per order, $60 per overdue order, $30 per truck-hour, stars at
-200 / 900 / 1500). Identical to step 1.6 — the refactor and the new actions change
-nothing when the player does nothing:
+- **1.8a** Staff and robot areas on the floor plan. The plan grows from 26 × 17 to
+  26 × 26; the working floor is unchanged, four rows lower. Front wall, behind one
+  door each: the canteen on the receiving side (a table with four chairs, a fridge,
+  a counter) and the café towards dispatch (a coffee counter and machine, two bistro
+  tables with four standing places). Back wall: the robot area — a maintenance
+  conveyor through a glass renewal capsule and six induction charging pads — behind
+  a wall with no door until Stage 2. All of it is data from `createWarehouse()`
+  that the 3D scene and the debug view draw. Walls are low cut-away blocks so the
+  isometric camera sees past them; the camera frame widened and shifted so nothing
+  sits under the HUD (checked at 1280 × 860, 1366 × 768 and 1024 × 768); the debug
+  view uses smaller cells and stays clear of the HUD. Breaks still happen at home.
+
+Measured on Monday (same seed, no player actions): identical to steps 1.6 and 1.7
+for 2, 6 and 12 operators — the new rooms are closed to the working floor's routes,
+so the operation does not change until breaks move there (1.8b):
 
 | Operators | Shipped | Late | Overdue | Score | Stars | Salaries | Penalties | Final wallet |
 | --------- | ------- | ---- | ------- | ----- | ----- | -------- | --------- | ------------ |
@@ -56,22 +67,17 @@ nothing when the player does nothing:
 | 6         | 13      | 4    | 6       | 900   | 2     | $720     | $366      | $514         |
 | 12        | 18      | 0    | 0       | 1800  | 3     | $1,440   | $0        | $660         |
 
-In the browser: hiring at 06:06 charged $150 and the operator arrived at 06:36 next
-to the first dock; with six operators the wallet first reached $450 at 08:35, and
-dismissing a busy operator there (paused) took the wallet to $67 — they finished
-unloading, walked home and left about 43 game minutes later.
-
 In development, `?operators=N` overrides the team size; production ignores it.
 
 ## Next — resume here
 
-Steps 1.1–1.6 are merged into `main`; 1.7 is on `feat/hire-and-dismiss`, awaiting
-validation. Next is **1.8**: staff and robot areas. Front wall: a canteen (seated
-meal, back to 90%) and a café (standing coffee, back to 60%); energy recovers only
-while eating or drinking, and tired workers spread across free places in both
-rooms. Back wall: the robot area — maintenance conveyor with a renewal capsule and
-induction pads — built now, activated in Stage 2. Then **1.9** baseline policy and
-automated balance tests.
+Steps 1.1–1.7 are merged into `main`; 1.8a is on `feat/staff-and-robot-areas`,
+awaiting validation. Next is **1.8b**: breaks move to the rooms — a canteen meal
+back to 90%, a café coffee back to 60%, energy recovered only while eating or
+drinking, each tired worker reserving a free place in the room with the most free
+places (nearest on a tie) and queueing at the doors when both are full; seated and
+standing poses; break, meal, coffee and queue time in the stats. Then **1.9**
+baseline policy and automated balance tests.
 
 ## Open decisions
 
@@ -85,8 +91,10 @@ automated balance tests.
 - **Dismissal is out of reach early on Monday.** At $400 it needs more cash than
   the starting $300; the first moment it is affordable depends on deliveries.
   Intended, but worth checking when balancing.
-- **Staggered breaks** become part of 1.8: limited places in the canteen and café
+- **Staggered breaks** become part of 1.8b: eight places for up to twelve operators
   turn a team that tires together into a visible queue.
+- **Give-way into a door.** An operator stepping aside on the bottom aisle can step
+  into a room's door cell. Harmless now; revisit in 1.8b once rooms are in use.
 - Outbound trucks are still static; animating them per order is a candidate for the
   control-room work (5.2).
 - Hosting for the decision worker — Stage 3.
