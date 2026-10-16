@@ -36,13 +36,12 @@ import {
   stepReceiving,
   type Receiving,
 } from './receiving';
-import { deriveSeed, nextRandom, randomInt } from './rng';
+import { chooseWork, nearestSlot, urgentTicks } from './policy';
+import { deriveSeed } from './rng';
 import type { World } from './world';
 
 export const PICK_TICKS = 8;
 export const DROP_TICKS = 8;
-/** When an operator could either unload a truck or pick for an order, the share that picks. */
-const ORDER_PICK_SHARE = 0.5;
 /** Random stream id for the simulation; the scenario generator draws from its own stream. */
 const SIMULATION_STREAM = 0;
 
@@ -572,51 +571,55 @@ function assignTask(context: Context, operator: Operator, shared: Shared): [Oper
 }
 
 /**
- * Baseline policy — the "no automation" reference later decision engines are measured
- * against. Unload a docked truck into a random free slot, or pick a random stored box
- * for the open order due soonest; when both are possible, choose at random.
+ * The next task for a free operator, decided by the baseline policy (`policy.ts`):
+ * which kind of work, then the slot nearest to the dock involved.
  */
 function drawTask(context: Context, shared: Shared): { task: Task; next: Shared } | null {
-  const { warehouse, scenario } = context.world;
+  const { warehouse, scenario, level } = context.world;
   const empty = slotIdsWith(shared.slots, 'empty');
   const stored = slotIdsWith(shared.slots, 'stored');
   const canUnload = empty.length > 0 && hasBoxToUnload(shared.receiving);
   const order = stored.length > 0 ? nextOrderToPick(scenario, shared.orders, context.tick) : null;
-  if (!canUnload && order === null) return null;
+  const work = chooseWork({
+    canUnload,
+    order,
+    tick: context.tick,
+    urgentTicks: urgentTicks(level),
+  });
 
-  const [roll, afterRoll] = nextRandom(shared.rng);
-  const claim =
-    canUnload && (order === null || roll >= ORDER_PICK_SHARE) ? claimBox(shared.receiving) : null;
-  if (claim !== null) {
-    const [slotPick, rng] = randomInt(afterRoll, empty.length);
-    const slot = at(warehouse.slots, at(empty, slotPick));
+  if (work === 'unload') {
+    const claim = claimBox(shared.receiving);
+    const dock = claim === null ? null : at(warehouse.inboundDocks, claim.dock);
+    const slot = dock === null ? null : nearestSlot(warehouse, empty, dock, shared.slots);
+    if (claim === null || dock === null || slot === null) return null;
     return {
       task: {
         kind: 'putaway',
         slotId: slot.id,
         itemId: claim.itemId,
         dock: claim.dock,
-        pickup: at(warehouse.inboundDocks, claim.dock),
+        pickup: dock,
         dropoff: slot.access,
       },
-      next: { ...shared, rng, receiving: claim.receiving },
+      next: { ...shared, receiving: claim.receiving },
     };
   }
-  if (order === null) return null;
-
-  const [slotPick, rng] = randomInt(afterRoll, stored.length);
-  const slot = at(warehouse.slots, at(stored, slotPick));
-  const { dock } = at(shared.orders, order.id);
-  return {
-    task: {
-      kind: 'dispatch',
-      slotId: slot.id,
-      orderId: order.id,
-      pickup: slot.access,
-      dropoff: at(warehouse.outboundDocks, dock),
-    },
-    next: { ...shared, rng, orders: claimOrderBox(shared.orders, order.id) },
-  };
+  if (work === 'pick' && order !== null) {
+    const dock = at(warehouse.outboundDocks, at(shared.orders, order.id).dock);
+    const slot = nearestSlot(warehouse, stored, dock, shared.slots);
+    if (slot === null) return null;
+    return {
+      task: {
+        kind: 'dispatch',
+        slotId: slot.id,
+        orderId: order.id,
+        pickup: slot.access,
+        dropoff: dock,
+      },
+      next: { ...shared, orders: claimOrderBox(shared.orders, order.id) },
+    };
+  }
+  return null;
 }
 
 function currentPlan(operator: Operator): BreakPlan {
