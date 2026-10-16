@@ -69,7 +69,13 @@ Goal: one level playable end to end with human operators only.
     60%, energy recovered only while eating or drinking; tired workers reserve a
     free place in the room with the most free places, and queue at the doors when
     both are full
-- ⬜ 1.9 Baseline policy and automated balance tests
+- 🔄 1.9 Baseline policy and automated balance tests
+  - ✅ 1.9a Deterministic baseline policy — urgency first, then unloading; nearest
+    slot to the dock, spreading people across aisles
+    ([ADR 0001](../decisions/0001-baseline-policy.md))
+  - ⬜ 1.9b Balance tests with scripted players (no purchases; hire up to N), Monday
+    targets: one star with no purchases, at most two stars with people only, hiring
+    not always best, a visible break queue, nobody reaching a break below 10% energy
 
 ## Stage 2 — Industry 4.0, locally
 
@@ -144,8 +150,12 @@ Goal: a public, clickable demo and a repository that explains itself.
 
 ## Decisions
 
-Structural decisions are recorded as ADRs in `docs/decisions/`, created with the
-first one. Decisions already taken in conversation and reflected above:
+Structural decisions are recorded as ADRs in `docs/decisions/`:
+
+- [ADR 0001](../decisions/0001-baseline-policy.md) — a deterministic baseline policy
+  as the fair reference for every automation comparison.
+
+Decisions already taken in conversation and reflected above:
 
 - Levels are configuration on a single floor plan with fixed seeds, not hand-built
   maps.

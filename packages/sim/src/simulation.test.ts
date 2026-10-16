@@ -157,9 +157,18 @@ describe('aisle traffic', () => {
   });
 
   it('costs more time to congestion as the team grows', () => {
+    // A day with work for everyone: on a light day a big team mostly waits at home,
+    // which hides how much more each busy operator loses to traffic.
     const lostPerOperator = (count: number) => {
-      const final = at(run(testWorld({ seed: 31, operators: count })), TEST_SHIFT_TICKS);
-      return final.stats.congestionTicks / count;
+      const world = testWorld({
+        seed: 31,
+        operators: count,
+        scenario: {
+          trucks: { count: 60, boxes: [4, 6], peaks: [] },
+          orders: { count: 60, boxes: [1, 3], deadlineMinutes: [60, 120], peaks: [] },
+        },
+      });
+      return at(run(world), TEST_SHIFT_TICKS).stats.congestionTicks / count;
     };
     expect(lostPerOperator(MAX_OPERATORS)).toBeGreaterThan(lostPerOperator(2));
   });

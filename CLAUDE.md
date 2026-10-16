@@ -19,7 +19,7 @@ session, read `STATUS.md` first; open the rest only when it answers your questio
 | the plan, stage by stage       | [docs/plan/ROADMAP.md](docs/plan/ROADMAP.md)                      |
 | what the product is and why    | [docs/product/one-pager.md](docs/product/one-pager.md)            |
 | how to run it                  | [README.md](README.md)                                            |
-| decisions already taken        | ROADMAP → _Decisions_; ADRs in `docs/decisions/` once they exist  |
+| decisions already taken        | ROADMAP → _Decisions_; ADRs in `docs/decisions/`                  |
 
 ## Code map
 
@@ -30,7 +30,8 @@ session, read `STATUS.md` first; open the rest only when it answers your questio
 | `level.ts`                             | Level file schema (Zod) → `LevelConfig`; levels live in `packages/sim/levels/` |
 | `scenario.ts`                          | Seeded plan of the day: stock, trucks, orders, items with true attributes      |
 | `layout.ts`                            | The single floor plan: racks, docks, homes, walls, staff rooms, robot area     |
-| `simulation.ts`                        | `SimState`, `step()`, operator phases, arrivals/departures, baseline policy    |
+| `simulation.ts`                        | `SimState`, `step()`, operator phases, arrivals and departures                 |
+| `policy.ts`                            | Baseline policy: what to do next, which slot (ADR 0001)                        |
 | `movement.ts`                          | Walking through traffic: occupancy, waiting, detours, giving way               |
 | `receiving.ts`                         | Inbound docks, truck queue, unloading, which dock to free next                 |
 | `orders.ts`                            | Order progress, earliest-deadline-first picking, on-time / late / missed       |
