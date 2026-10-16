@@ -4,7 +4,7 @@ import { BREAK_ENDS_AT, REST_BELOW, speedFactor } from './fatigue';
 import { at, manhattanDistance, samePoint } from './geometry';
 import { isWalkable } from './grid';
 import { contains, MAX_OPERATORS } from './layout';
-import { OPERATOR_SPEED, SIDESTEP_AFTER_TICKS } from './movement';
+import { isHeldUp, OPERATOR_SPEED, SIDESTEP_AFTER_TICKS } from './movement';
 import {
   BREAK_PHASES,
   createInitialState,
@@ -277,6 +277,22 @@ describe('breaks in the staff rooms', () => {
     expect(final.stats.queueTicks).toBeGreaterThan(0);
   });
 
+  it('lets people pass through a doorway without jamming it', () => {
+    const doorway = world.warehouse.staffRooms.flatMap((room) => room.doorway);
+    const heldFor = new Map<number, number>();
+    let longest = 0;
+    for (const state of states) {
+      for (const operator of state.operators) {
+        const atDoor = doorway.some((gap) => manhattanDistance(gap, operator.from) <= 1);
+        const ticks = atDoor && isHeldUp(operator) ? (heldFor.get(operator.id) ?? 0) + 1 : 0;
+        heldFor.set(operator.id, ticks);
+        longest = Math.max(longest, ticks);
+      }
+    }
+    // Three abreast: never stuck long enough to need stepping aside.
+    expect(longest).toBeLessThan(SIDESTEP_AFTER_TICKS);
+  });
+
   it('never gives the same place or queue spot to two operators', () => {
     for (const state of states) {
       const held = state.operators
@@ -316,7 +332,9 @@ describe('breaks in the staff rooms', () => {
       // the doorway stepping back in to let someone else through.
       if (inRoom && operator.breakPlan === null) {
         const wasInside = rooms.some(
-          (room) => contains(room.bounds, before.from) || samePoint(room.door, before.from),
+          (room) =>
+            contains(room.bounds, before.from) ||
+            room.doorway.some((gap) => samePoint(gap, before.from)),
         );
         expect(wasInside || before.breakPlan !== null).toBe(true);
       }

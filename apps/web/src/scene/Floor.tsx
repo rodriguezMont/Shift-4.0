@@ -22,6 +22,16 @@ export function Floor() {
       {staffRooms.map((room) => (
         <Ground key={room.kind} rect={room.bounds} color={ROOM_FLOOR[room.kind]} />
       ))}
+      {/* The room's floor runs through its doorway. */}
+      {staffRooms.flatMap((room) =>
+        room.doorway.map((gap) => (
+          <Ground
+            key={`${room.kind}:${String(gap.x)}`}
+            rect={{ ...gap, width: 1, height: 1 }}
+            color={ROOM_FLOOR[room.kind]}
+          />
+        )),
+      )}
       <Ground rect={robotArea.bounds} color={palette.robotFloor} />
 
       {[...warehouse.inboundDocks, ...warehouse.outboundDocks].map((dock) => (

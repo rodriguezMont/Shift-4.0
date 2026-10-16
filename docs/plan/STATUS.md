@@ -64,7 +64,8 @@ _Rewritten at the end of each step — current state only. Last update: 2026-10-
   standing place, back to 60%, about 12 minutes); walking, queueing or standing idle
   restores nothing (idle operators used to recover a little — no longer). With every
   place taken, they wait on a queue spot beside a door, and the longest wait is seated
-  first. A dismissed operator cuts the break short and leaves. Giving way never sends
+  first. A dismissed operator cuts the break short and leaves. Each doorway is three
+  cells wide, so up to three people go in or out at once; giving way never sends
   someone from the floor into a doorway or a room. In the scene, diners sit facing the
   table and coffee drinkers stand at a bistro table with a cup; the HUD adds meals,
   coffees and queue time, and the debug view marks the queue spots.
@@ -73,13 +74,15 @@ Measured on Monday (same seed, no player actions):
 
 | Operators | Shipped | Late | Overdue | Score | Final wallet | Meals · coffees | Break / queue time |
 | --------- | ------- | ---- | ------- | ----- | ------------ | --------------- | ------------------ |
-| 2         | 5 of 18 | 4    | 14      | 0     | -$761        | 1 · 1           | 115 / 0 min        |
-| 6         | 14      | 5    | 6       | 960   | $615         | 2 · 4           | 351 / 0 min        |
-| 12        | 18      | 0    | 0       | 1800  | $660         | 3 · 4           | 431 / 1 min        |
+| 2         | 5 of 18 | 4    | 14      | 0     | -$761        | 1 · 1           | 109 / 0 min        |
+| 6         | 14      | 5    | 6       | 960   | $616         | 2 · 4           | 350 / 0 min        |
+| 12        | 18      | 0    | 0       | 1800  | $660         | 3 · 5           | 411 / 0 min        |
 
 Compared with 1.8a, six operators ship one more order (score 900 → 960): short café
 breaks put people back to work sooner. Breaks take longer overall because the rooms
-are a walk away from the docks. **The queue barely forms on Monday**: even twelve
+are a walk away from the docks. Widening the doorways from one cell to three cut the
+time twelve operators spend held up at the doors from 29 to 3 minutes a shift (112
+to 0 on a double-load day), and the longest jam from 7 minutes to 1. **The queue barely forms on Monday**: even twelve
 operators tire at different times, and short coffees free places fast. A Monday with
 twice the trucks and orders still showed no queue; a test with twelve operators on a
 far heavier day does fill both rooms and queue.

@@ -82,7 +82,9 @@ function drawFrame(context: CanvasRenderingContext2D, runner: SimulationRunner):
   fill(palette.robotFloor, robotArea.bounds);
   for (const room of staffRooms) {
     fill(room.kind === 'canteen' ? palette.canteenFloor : palette.cafeFloor, room.bounds);
-    fill(room.kind === 'canteen' ? palette.canteenFloor : palette.cafeFloor, cell(room.door));
+    for (const gap of room.doorway) {
+      fill(room.kind === 'canteen' ? palette.canteenFloor : palette.cafeFloor, cell(gap));
+    }
     for (const piece of room.furniture) {
       for (const part of cellsOf(piece.cells)) fill(FURNITURE_COLORS[piece.kind], cell(part), 2);
     }

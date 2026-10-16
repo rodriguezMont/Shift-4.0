@@ -33,6 +33,8 @@ const RACK_ROW_BLOCKS = [
 ] as const;
 /** Splits the staff strip into the canteen (receiving side) and the café. */
 const STAFF_PARTITION_COLUMN = 13;
+/** Cells either side of a doorway's centre: three abreast can go in or out at once. */
+const DOORWAY_HALF_WIDTH = 1;
 
 /** A storage position: the blocked rack cell plus the aisle cell it is served from. */
 export interface Slot {
@@ -63,8 +65,10 @@ export type StaffRoomKind = 'canteen' | 'cafe';
 export interface StaffRoom {
   readonly kind: StaffRoomKind;
   readonly bounds: Rect;
-  /** The gap in the wall between the floor and the room. */
+  /** Centre of the doorway, used to judge which room is nearer. */
   readonly door: Point;
+  /** The gap in the wall between the floor and the room, three cells wide. */
+  readonly doorway: readonly Point[];
   /** Where one person sits to eat (canteen) or stands for coffee (café). */
   readonly places: readonly Point[];
   /** Floor cells beside the door where people wait when every place is taken. */
@@ -114,14 +118,14 @@ export function createWarehouse(): Warehouse {
 
   const staffRooms = createStaffRooms();
   const robotArea = createRobotArea();
-  const doors = staffRooms.map(({ door }) => door);
+  const doorways = staffRooms.flatMap(({ doorway }) => doorway);
   const wallLines: Point[] = [];
   for (let x = 0; x < WIDTH; x++)
     wallLines.push({ x, y: ROBOT_WALL_ROW }, { x, y: STAFF_WALL_ROW });
   for (let y = STAFF_ROWS.top; y <= STAFF_ROWS.bottom; y++) {
     wallLines.push({ x: STAFF_PARTITION_COLUMN, y });
   }
-  const walls = wallLines.filter((cell) => !doors.some((door) => samePoint(door, cell)));
+  const walls = wallLines.filter((cell) => !doorways.some((gap) => samePoint(gap, cell)));
 
   const walkable = new Array<boolean>(WIDTH * HEIGHT).fill(true);
   const block = ({ x, y }: Point) => {
@@ -173,16 +177,30 @@ export function contains({ x, y, width, height }: Rect, point: Point): boolean {
  * from the floor into a room. Someone already in a room or a doorway may step anywhere.
  */
 export function mayStepAside(warehouse: Warehouse, from: Point, to: Point): boolean {
-  if (warehouse.staffRooms.some(({ door }) => samePoint(door, to))) return false;
+  if (warehouse.staffRooms.some(({ doorway }) => doorway.some((gap) => samePoint(gap, to)))) {
+    return false;
+  }
   return !contains(warehouse.floor, from) || contains(warehouse.floor, to);
 }
 
-/** The two floor cells either side of the cell in front of a door, leaving the way in clear. */
-function besideDoor(doorX: number): Point[] {
-  return [
-    { x: doorX - 1, y: FLOOR_ROWS.bottom },
-    { x: doorX + 1, y: FLOOR_ROWS.bottom },
-  ];
+/**
+ * A room's way in, from the one column it is centred on: the doorway in the staff wall,
+ * and a queue spot on the floor either side of the lane in front of it.
+ */
+function entrance(centreX: number): Pick<StaffRoom, 'door' | 'doorway' | 'queue'> {
+  const doorway: Point[] = [];
+  for (let dx = -DOORWAY_HALF_WIDTH; dx <= DOORWAY_HALF_WIDTH; dx++) {
+    doorway.push({ x: centreX + dx, y: STAFF_WALL_ROW });
+  }
+  const offset = DOORWAY_HALF_WIDTH + 1;
+  return {
+    door: { x: centreX, y: STAFF_WALL_ROW },
+    doorway,
+    queue: [
+      { x: centreX - offset, y: FLOOR_ROWS.bottom },
+      { x: centreX + offset, y: FLOOR_ROWS.bottom },
+    ],
+  };
 }
 
 function rows(top: number, bottom: number, x = 0, width = WIDTH): Rect {
@@ -192,7 +210,7 @@ function rows(top: number, bottom: number, x = 0, width = WIDTH): Rect {
 /**
  * Canteen on the receiving side: one table with four chairs, a fridge and a counter.
  * Café on the dispatch side: a coffee counter and two bistro tables with two standing
- * places each. Places sit clear of the doors so nobody seated blocks the way in.
+ * places each. Places sit clear of the doorways so nobody seated blocks the way.
  */
 function createStaffRooms(): StaffRoom[] {
   const { top, bottom } = STAFF_ROWS;
@@ -200,8 +218,7 @@ function createStaffRooms(): StaffRoom[] {
     {
       kind: 'canteen',
       bounds: rows(top, bottom, 0, STAFF_PARTITION_COLUMN),
-      door: { x: 4, y: STAFF_WALL_ROW },
-      queue: besideDoor(4),
+      ...entrance(4),
       places: [
         { x: 8, y: top },
         { x: 9, y: top },
@@ -217,8 +234,7 @@ function createStaffRooms(): StaffRoom[] {
     {
       kind: 'cafe',
       bounds: rows(top, bottom, STAFF_PARTITION_COLUMN + 1, WIDTH - STAFF_PARTITION_COLUMN - 1),
-      door: { x: 19, y: STAFF_WALL_ROW },
-      queue: besideDoor(19),
+      ...entrance(19),
       places: [
         { x: 16, y: top + 2 },
         { x: 18, y: top + 2 },
