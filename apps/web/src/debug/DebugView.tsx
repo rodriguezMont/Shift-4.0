@@ -93,6 +93,12 @@ function drawFrame(context: CanvasRenderingContext2D, runner: SimulationRunner):
       context.arc(...center(place), CELL * 0.28, 0, Math.PI * 2);
       context.stroke();
     }
+    // Queue spots beside the door, where people wait when every place is taken.
+    context.setLineDash([3, 3]);
+    for (const spot of room.queue) {
+      context.strokeRect(spot.x * CELL + 4, spot.y * CELL + 4, CELL - 8, CELL - 8);
+    }
+    context.setLineDash([]);
   }
   for (const part of robotArea.conveyor) fill(palette.conveyorBelt, cell(part), 3);
   fill(palette.charge, cell(robotArea.capsule), 5);
