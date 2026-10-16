@@ -34,7 +34,8 @@ session, read `STATUS.md` first; open the rest only when it answers your questio
 | `movement.ts`                          | Walking through traffic: occupancy, waiting, detours, giving way               |
 | `receiving.ts`                         | Inbound docks, truck queue, unloading, which dock to free next                 |
 | `orders.ts`                            | Order progress, earliest-deadline-first picking, on-time / late / missed       |
-| `fatigue.ts`                           | Operator energy, tired walking speed, break thresholds                         |
+| `fatigue.ts`                           | Operator energy, tired walking speed, break thresholds and recovery rates      |
+| `breaks.ts`                            | Breaks in the staff rooms: choosing a place, the queue, who gets seated        |
 | `economy.ts`                           | Wallet, score and stars, derived from run stats and the level's money values   |
 | `actions.ts`                           | Player actions (hire, dismiss), their validation, the action log, replay       |
 | `clock.ts`, `rng.ts`, `pathfinding.ts` | Shift time, seeded random streams, A\*                                         |
