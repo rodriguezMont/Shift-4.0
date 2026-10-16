@@ -1,10 +1,10 @@
 # Status
 
-_Rewritten at the end of each step — current state only. Last update: 2026-10-15, after step 1.6._
+_Rewritten at the end of each step — current state only. Last update: 2026-10-16, after step 1.7._
 
 ## Where we are
 
-**Stage 1 — Game core: in progress.** Steps 1.1 to 1.6 are done.
+**Stage 1 — Game core: in progress.** Steps 1.1 to 1.7 are done.
 
 - **1.1** Levels are validated JSON files (`packages/sim/levels/`); a run plays a
   figurative 06:00–14:00 shift with 1×/2×/4× speed, pause and restart.
@@ -30,9 +30,25 @@ _Rewritten at the end of each step — current state only. Last update: 2026-10-
   (with the next star threshold), stars, wallet and overdue orders; the end-of-shift
   summary adds the wallet breakdown. No combo multiplier (see roadmap decisions).
 
-Measured on Monday (headless browser, same seed; provisional values: $300 start,
+- **1.7** Player actions and the action log. A run is now its level plus the list of
+  actions the player took, each stamped with its tick; `actions.ts` validates them
+  the same way live and on replay, and `replay(world, log)` recomputes the exact
+  final state (tested against a live run). **Hire**: a one-off fee ($150 on Monday),
+  only with the cash for it; the operator arrives after the level's delay (30 game
+  minutes) at a free home, and is paid from arrival. **Dismiss**: always dearer than
+  hiring ($400, enforced by the level schema), also needs cash; the player chooses who
+  leaves (click the figure, or the HUD list for keyboard use), and the operator
+  finishes the current task, walks home and leaves — salary stops then. One operator
+  always stays; the team is capped at twelve, counting those on the way in. Operator
+  ids are unique for the run and each operator has their own home. The HUD gains a
+  Team block (hire, arrivals and departures, the selected operator's card) and the
+  wallet breakdown gains hiring and dismissal lines. Malformed or impossible log
+  entries are rejected, ready for the server-side replay (4.4).
+
+Measured on Monday (same seed, no player actions; provisional values: $300 start,
 $15/h salary, $100 per order, $60 per overdue order, $30 per truck-hour, stars at
-200 / 900 / 1500):
+200 / 900 / 1500). Identical to step 1.6 — the refactor and the new actions change
+nothing when the player does nothing:
 
 | Operators | Shipped | Late | Overdue | Score | Stars | Salaries | Penalties | Final wallet |
 | --------- | ------- | ---- | ------- | ----- | ----- | -------- | --------- | ------------ |
@@ -40,36 +56,37 @@ $15/h salary, $100 per order, $60 per overdue order, $30 per truck-hour, stars a
 | 6         | 13      | 4    | 6       | 900   | 2     | $720     | $366      | $514         |
 | 12        | 18      | 0    | 0       | 1800  | 3     | $1,440   | $0        | $660         |
 
-Sampling the HUD every half second confirmed the real-time behaviour: with two
-operators the score first drops at 08:19 (100 → 60), and the wallet at 13:59 already
-matches the final one within a tick of salary. The operation itself is unchanged
-from 1.5 (same shipped, late and truck counts): the economy only reads the run.
+In the browser: hiring at 06:06 charged $150 and the operator arrived at 06:36 next
+to the first dock; with six operators the wallet first reached $450 at 08:35, and
+dismissing a busy operator there (paused) took the wallet to $67 — they finished
+unloading, walked home and left about 43 game minutes later.
 
 In development, `?operators=N` overrides the team size; production ignores it.
 
 ## Next — resume here
 
-Steps 1.1–1.5 are merged into `main`; 1.6 is on `feat/economy`, awaiting
-validation. Next is **1.7**: player actions (hire and dismiss, with arrival delay)
-recorded in an action log, then **1.8** baseline policy and automated balance tests.
-
-For 1.7, hiring must cost money and be blocked while the wallet cannot pay for it
-(decided in 1.6): the score ignores spending, so without that gate hiring the
-maximum team would always be the best move.
+Steps 1.1–1.6 are merged into `main`; 1.7 is on `feat/hire-and-dismiss`, awaiting
+validation. Next is **1.8**: staff and robot areas. Front wall: a canteen (seated
+meal, back to 90%) and a café (standing coffee, back to 60%); energy recovers only
+while eating or drinking, and tired workers spread across free places in both
+rooms. Back wall: the robot area — maintenance conveyor with a renewal capsule and
+induction pads — built now, activated in Stage 2. Then **1.9** baseline policy and
+automated balance tests.
 
 ## Open decisions
 
-- **Monday's starting team now earns no star.** With two operators, 14 overdue
-  orders (−560) outweigh 5 shipped (+340), so the score ends at 0. The one-pager
-  promises a star to a player who buys nothing. Fix in balancing (2.6): fewer or
-  later orders on Monday, a smaller deduction, or a starting team of three.
-- **Hiring is currently the dominant strategy.** At $15/h, twelve operators earn
-  both the best score and the best wallet on Monday. Monday's lesson (hire an AI
-  Analyst, buy a robot) needs people to be expensive enough that automation pays —
-  tune salaries and prices against the level 1 balance targets (2.6).
-- **Staggered breaks.** A team that starts together tires together. Options: a fixed
-  baseline rota, a player control, or a decision for the decision engine (Stage 2/3).
-  To settle before balancing.
+- **Monday's starting team earns no star.** With two operators, 14 overdue orders
+  (−560) outweigh 5 shipped (+340), so the score ends at 0. The one-pager promises a
+  star to a player who buys nothing. Fix in balancing (2.6): fewer or later orders,
+  a smaller deduction, or a starting team of three.
+- **Hiring is still the strongest move.** The fee only stops hiring without cash;
+  at $15/h more people still pays. Monday's lesson (automation pays) needs people to
+  cost more — tune against the level 1 balance targets (2.6).
+- **Dismissal is out of reach early on Monday.** At $400 it needs more cash than
+  the starting $300; the first moment it is affordable depends on deliveries.
+  Intended, but worth checking when balancing.
+- **Staggered breaks** become part of 1.8: limited places in the canteen and café
+  turn a team that tires together into a visible queue.
 - Outbound trucks are still static; animating them per order is a candidate for the
   control-room work (5.2).
 - Hosting for the decision worker — Stage 3.

@@ -57,9 +57,15 @@ Goal: one level playable end to end with human operators only.
 - ✅ 1.4b Picking and dispatch: orders pulled from stock and shipped within deadline
 - ✅ 1.5 Operator fatigue and rest
 - ✅ 1.6 Economy — wallet separate from score — salaries, penalties, star thresholds
-- ⬜ 1.7 Player actions (hire and dismiss, with arrival delay) recorded in an action
-  log, the basis for replay
-- ⬜ 1.8 Baseline policy and automated balance tests
+- ✅ 1.7 Player actions (hire and dismiss, with arrival delay) recorded in an action
+  log, the basis for replay. Dismissing costs more than hiring; both need cash
+- ⬜ 1.8 Staff and robot areas on the floor plan. Front wall: a canteen (seated meal,
+  long break back to 90%) and a café (standing coffee, short break back to 60%);
+  energy recovers only while eating or drinking, and tired workers spread across
+  free places in both rooms. Back wall: the robot area, built now and activated in
+  Stage 2 — an automated maintenance conveyor with a renewal capsule, and induction
+  charging pads
+- ⬜ 1.9 Baseline policy and automated balance tests
 
 ## Stage 2 — Industry 4.0, locally
 
@@ -67,13 +73,14 @@ Goal: automation works end to end with no network.
 
 - ⬜ 2.1 AI Analyst role and robot capacity rule
 - ⬜ 2.2 Robot agent: faster, no fragile items or exceptions
-- ⬜ 2.3 Battery and charging station
+- ⬜ 2.3 Battery, induction charging and the maintenance conveyor (robot area from
+  1.8), with robots spread across them
 - ⬜ 2.4 `DecisionEngine` interface and rules engine with confidence scores
 - ⬜ 2.5 Exception routing to humans and the confidence threshold control
 - ⬜ 2.6 Level 1 purchase path and balance: no purchases → 1 star; guided path → 3
   stars, enforced by tests
 - ⬜ 2.7 _Below the cut line._ Infrastructure upgrades in the simulation: a catalog of
-  four (a fourth inbound dock, faster pallet jacks, a rest area, an extra charger)
+  four (a fourth inbound dock, faster pallet jacks, more break-room places, an extra charger)
   applied to the run configuration on the same floor plan; tests prove every level
   is still winnable with none
 
