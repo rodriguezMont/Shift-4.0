@@ -9,6 +9,7 @@ import {
 } from './breaks';
 import { BREAK_ENDS_AT, needsRest, nextEnergy, speedFactor, type Effort } from './fatigue';
 import { at, samePoint, type Point } from './geometry';
+import { mayStepAside } from './layout';
 import {
   advance,
   hasArrived,
@@ -538,9 +539,17 @@ function stepOperator(context: Context, operator: Operator, shared: Shared): [Op
 }
 
 function move(context: Context, operator: Operator, shared: Shared): [Operator, Shared] {
-  const { grid } = context.world.warehouse;
+  const { warehouse } = context.world;
   const speed = OPERATOR_SPEED * speedFactor(operator.energy);
-  const { walker, rng } = advance(operator, grid, context.occupancy, shared.rng, speed);
+  // Giving way never sends someone into a doorway or from the floor into a room.
+  const { walker, rng } = advance(
+    operator,
+    warehouse.grid,
+    context.occupancy,
+    shared.rng,
+    speed,
+    (from, to) => mayStepAside(warehouse, from, to),
+  );
   return [walker, { ...shared, rng }];
 }
 

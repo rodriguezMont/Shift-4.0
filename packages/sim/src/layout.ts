@@ -168,6 +168,15 @@ export function contains({ x, y, width, height }: Rect, point: Point): boolean {
   return point.x >= x && point.x < x + width && point.y >= y && point.y < y + height;
 }
 
+/**
+ * Giving way never takes someone off the working floor: never into a doorway, and never
+ * from the floor into a room. Someone already in a room or a doorway may step anywhere.
+ */
+export function mayStepAside(warehouse: Warehouse, from: Point, to: Point): boolean {
+  if (warehouse.staffRooms.some(({ door }) => samePoint(door, to))) return false;
+  return !contains(warehouse.floor, from) || contains(warehouse.floor, to);
+}
+
 /** The two floor cells either side of the cell in front of a door, leaving the way in clear. */
 function besideDoor(doorX: number): Point[] {
   return [

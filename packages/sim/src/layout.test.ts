@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { at, manhattanDistance, samePoint, type Point } from './geometry';
 import { isWalkable } from './grid';
-import { cellsOf, createWarehouse, MAX_OPERATORS, type Rect } from './layout';
+import { cellsOf, createWarehouse, MAX_OPERATORS, mayStepAside, type Rect } from './layout';
 import { findPath } from './pathfinding';
 
 describe('createWarehouse', () => {
@@ -95,6 +95,20 @@ describe('createWarehouse', () => {
         expect(samePoint(spot, { x: room.door.x, y: room.door.y - 1 })).toBe(false);
       }
     }
+  });
+
+  it('never lets giving way lead from the floor into a doorway or a room', () => {
+    const [canteen] = warehouse.staffRooms;
+    if (!canteen) throw new Error('missing canteen');
+    const { door } = canteen;
+    const inFront = { x: door.x, y: door.y - 1 };
+    const inside = { x: door.x, y: door.y + 1 };
+    expect(mayStepAside(warehouse, inFront, door)).toBe(false);
+    expect(mayStepAside(warehouse, inFront, { x: inFront.x + 1, y: inFront.y })).toBe(true);
+    // Someone leaving a room may step back in or out of the doorway to let others pass.
+    expect(mayStepAside(warehouse, door, inside)).toBe(true);
+    expect(mayStepAside(warehouse, door, inFront)).toBe(true);
+    expect(mayStepAside(warehouse, inside, { x: inside.x + 1, y: inside.y })).toBe(true);
   });
 
   it('only connects the two rooms through the warehouse floor', () => {
