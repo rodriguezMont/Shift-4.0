@@ -3,6 +3,7 @@ import { usePlayback, useRunner, useSimState } from '../simulation/context';
 import { SPEEDS } from '../simulation/runner';
 import { DayPlan } from './DayPlan';
 import { formatMinuteOfDay } from './format';
+import { Results } from './Results';
 import { ShiftStats } from './ShiftStats';
 
 export type View = 'scene' | 'debug';
@@ -33,6 +34,7 @@ export function Hud({ view, onToggleView }: HudProps) {
 
       <PlaybackControls />
 
+      <Results />
       <DayPlan />
       <ShiftStats />
 

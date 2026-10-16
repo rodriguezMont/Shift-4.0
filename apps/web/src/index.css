@@ -149,3 +149,24 @@ body {
 .hud-next {
   color: var(--color-muted);
 }
+
+.stars {
+  color: #c98a00;
+  letter-spacing: 0.08em;
+}
+
+.money-negative {
+  color: #b3261e;
+}
+
+.ledger-total {
+  padding-top: 4px;
+  border-top: 1px solid var(--color-border);
+  font-weight: 600;
+}
+
+/* Carry the rule across the column gap so it reads as one line. */
+dt.ledger-total {
+  margin-right: -16px;
+  padding-right: 16px;
+}
