@@ -126,7 +126,10 @@ function OperatorCard({ operator }: { readonly operator: Operator }) {
 
 function statusOf(operator: Operator): string {
   if (operator.leaving) return 'Leaving';
-  if (operator.phase === 'resting' || operator.phase === 'toBreak') return 'On a break';
+  if (operator.phase === 'toBreak') return 'Heading for a break';
+  if (operator.phase === 'queueing') return 'Waiting for a place';
+  if (operator.phase === 'eating') return 'Eating';
+  if (operator.phase === 'drinking') return 'Having a coffee';
   if (operator.task?.kind === 'putaway') return 'Unloading a truck';
   if (operator.task?.kind === 'dispatch') return 'Picking an order';
   return 'Idle';

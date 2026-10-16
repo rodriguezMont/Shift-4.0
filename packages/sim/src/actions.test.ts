@@ -109,6 +109,29 @@ describe('dismissing', () => {
     expect(reserved.length).toBe(onTheJob.length);
   });
 
+  it('cuts a break short: a dismissed operator gives up their place and leaves', () => {
+    const tired = createInitialState(world);
+    let state: SimState = {
+      ...tired,
+      operators: tired.operators.map((operator) =>
+        operator.id === 1 ? { ...operator, energy: 0.1 } : operator,
+      ),
+    };
+    while (
+      operatorById(state.operators, 1)?.phase !== 'eating' &&
+      operatorById(state.operators, 1)?.phase !== 'drinking'
+    ) {
+      state = step(world, state);
+    }
+    state = act(world, state, { kind: 'dismiss', operatorId: 1 });
+    for (let i = 0; i < 2000 && operatorById(state.operators, 1) !== null; i++) {
+      state = step(world, state);
+      const operator = operatorById(state.operators, 1);
+      if (operator !== null) expect(['eating', 'drinking']).not.toContain(operator.phase);
+    }
+    expect(operatorById(state.operators, 1)).toBeNull();
+  });
+
   it('stops paying salary once the operator has left', () => {
     let state = act(world, start, { kind: 'dismiss', operatorId: 2 });
     state = advance(world, state, 50); // idle at home: leaves at once

@@ -85,6 +85,18 @@ describe('createWarehouse', () => {
     }
   });
 
+  it('gives each room two queue spots beside its door, keeping the way in clear', () => {
+    for (const room of warehouse.staffRooms) {
+      expect(room.queue).toHaveLength(2);
+      for (const spot of room.queue) {
+        expect(inside(warehouse.floor, spot)).toBe(true);
+        expect(isWalkable(warehouse.grid, spot)).toBe(true);
+        expect(manhattanDistance(spot, room.door)).toBe(2);
+        expect(samePoint(spot, { x: room.door.x, y: room.door.y - 1 })).toBe(false);
+      }
+    }
+  });
+
   it('only connects the two rooms through the warehouse floor', () => {
     const [canteen, cafe] = warehouse.staffRooms;
     if (!canteen || !cafe) throw new Error('missing staff rooms');

@@ -87,7 +87,7 @@ function OperatorFigure({ id, selected, onSelect }: OperatorFigureProps) {
     carriedBox.current.visible = operator.carrying;
 
     // Stamina bar: hidden when fresh, left-anchored fill, blue while on a break.
-    const resting = operator.phase === 'resting';
+    const resting = operator.phase === 'eating' || operator.phase === 'drinking';
     energyBar.current.visible = resting || operator.energy < BAR_HIDDEN_ABOVE;
     energyFill.current.scale.x = Math.max(operator.energy, 0.001);
     energyFill.current.position.x = -((1 - operator.energy) * BAR_WIDTH) / 2;

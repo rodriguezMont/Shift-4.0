@@ -67,6 +67,8 @@ export interface StaffRoom {
   readonly door: Point;
   /** Where one person sits to eat (canteen) or stands for coffee (café). */
   readonly places: readonly Point[];
+  /** Floor cells beside the door where people wait when every place is taken. */
+  readonly queue: readonly Point[];
   readonly furniture: readonly Furniture[];
 }
 
@@ -161,6 +163,19 @@ export function cellsOf({ x, y, width, height }: Rect): Point[] {
   return cells;
 }
 
+/** Whether a cell lies inside a block of cells. */
+export function contains({ x, y, width, height }: Rect, point: Point): boolean {
+  return point.x >= x && point.x < x + width && point.y >= y && point.y < y + height;
+}
+
+/** The two floor cells either side of the cell in front of a door, leaving the way in clear. */
+function besideDoor(doorX: number): Point[] {
+  return [
+    { x: doorX - 1, y: FLOOR_ROWS.bottom },
+    { x: doorX + 1, y: FLOOR_ROWS.bottom },
+  ];
+}
+
 function rows(top: number, bottom: number, x = 0, width = WIDTH): Rect {
   return { x, y: top, width, height: bottom - top + 1 };
 }
@@ -177,6 +192,7 @@ function createStaffRooms(): StaffRoom[] {
       kind: 'canteen',
       bounds: rows(top, bottom, 0, STAFF_PARTITION_COLUMN),
       door: { x: 4, y: STAFF_WALL_ROW },
+      queue: besideDoor(4),
       places: [
         { x: 8, y: top },
         { x: 9, y: top },
@@ -193,6 +209,7 @@ function createStaffRooms(): StaffRoom[] {
       kind: 'cafe',
       bounds: rows(top, bottom, STAFF_PARTITION_COLUMN + 1, WIDTH - STAFF_PARTITION_COLUMN - 1),
       door: { x: 19, y: STAFF_WALL_ROW },
+      queue: besideDoor(19),
       places: [
         { x: 16, y: top + 2 },
         { x: 18, y: top + 2 },

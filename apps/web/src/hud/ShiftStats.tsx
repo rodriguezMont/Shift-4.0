@@ -1,4 +1,4 @@
-import { minutesPerTick, openOrderCount, overdueOrderCount } from '@shift40/sim';
+import { BREAK_PHASES, minutesPerTick, openOrderCount, overdueOrderCount } from '@shift40/sim';
 import { usePlayback, useRunner, useSimState } from '../simulation/context';
 
 /** The shift's running totals; one definition shared by the HUD and the end-of-shift summary. */
@@ -15,7 +15,7 @@ export function ShiftStats() {
   const open = openOrderCount(world.scenario, orders, tick);
   // Past their deadline before shipping: each one cost score and money when it fell due.
   const overdue = overdueOrderCount(world.scenario, orders, tick);
-  const onBreak = operators.filter((operator) => operator.phase === 'resting').length;
+  const onBreak = operators.filter((operator) => BREAK_PHASES.includes(operator.phase)).length;
   const averageEnergy =
     operators.reduce((sum, operator) => sum + operator.energy, 0) / Math.max(operators.length, 1);
 
