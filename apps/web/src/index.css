@@ -34,6 +34,9 @@ body {
 .debug-view {
   display: grid;
   place-items: center;
+  box-sizing: border-box;
+  /* Keep the plan clear of the HUD panel on the left. */
+  padding-left: 250px;
   width: 100%;
   height: 100%;
 }

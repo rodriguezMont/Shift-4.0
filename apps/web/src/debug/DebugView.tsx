@@ -1,10 +1,19 @@
-import { operatorPosition, type Point } from '@shift40/sim';
+import { cellsOf, operatorPosition, type FurnitureKind, type Point, type Rect } from '@shift40/sim';
 import { useEffect, useRef } from 'react';
 import { useRunner } from '../simulation/context';
 import type { SimulationRunner } from '../simulation/runner';
 import { palette, slotColors } from '../palette';
 
-const CELL = 28;
+/** Small enough for the whole 26 × 26 plan to fit beside the HUD on a laptop screen. */
+const CELL = 22;
+
+const FURNITURE_COLORS: Record<FurnitureKind, string> = {
+  table: palette.furnitureWood,
+  bistroTable: palette.furnitureWood,
+  fridge: palette.furnitureLight,
+  counter: palette.furnitureLight,
+  coffeeMachine: palette.furnitureDark,
+};
 
 /** Flat top-down view of the raw simulation: the ground truth the 3D scene must match. */
 export function DebugView() {
@@ -45,19 +54,49 @@ export function DebugView() {
 function drawFrame(context: CanvasRenderingContext2D, runner: SimulationRunner): void {
   const { warehouse } = runner;
   const state = runner.getState();
-  const { width, height } = warehouse.grid;
-  const zone = warehouse.dockZoneColumns * CELL;
+  const { floor, dockZoneColumns, staffRooms, robotArea } = warehouse;
   const center = (point: Point): [number, number] => [
     (point.x + 0.5) * CELL,
     (point.y + 0.5) * CELL,
   ];
+  const fill = (color: string, { x, y, width, height }: Rect, inset = 0) => {
+    context.fillStyle = color;
+    context.fillRect(
+      x * CELL + inset,
+      y * CELL + inset,
+      width * CELL - 2 * inset,
+      height * CELL - 2 * inset,
+    );
+  };
+  const cell = (point: Point): Rect => ({ ...point, width: 1, height: 1 });
 
-  context.fillStyle = palette.floor;
-  context.fillRect(0, 0, width * CELL, height * CELL);
-  context.fillStyle = palette.inboundZone;
-  context.fillRect(0, 0, zone, height * CELL);
-  context.fillStyle = palette.outboundZone;
-  context.fillRect(width * CELL - zone, 0, zone, height * CELL);
+  context.fillStyle = palette.wall;
+  context.fillRect(0, 0, warehouse.grid.width * CELL, warehouse.grid.height * CELL);
+  fill(palette.floor, floor);
+  fill(palette.inboundZone, { ...floor, width: dockZoneColumns });
+  fill(palette.outboundZone, {
+    ...floor,
+    x: floor.x + floor.width - dockZoneColumns,
+    width: dockZoneColumns,
+  });
+  fill(palette.robotFloor, robotArea.bounds);
+  for (const room of staffRooms) {
+    fill(room.kind === 'canteen' ? palette.canteenFloor : palette.cafeFloor, room.bounds);
+    fill(room.kind === 'canteen' ? palette.canteenFloor : palette.cafeFloor, cell(room.door));
+    for (const piece of room.furniture) {
+      for (const part of cellsOf(piece.cells)) fill(FURNITURE_COLORS[piece.kind], cell(part), 2);
+    }
+    context.strokeStyle = palette.furnitureWood;
+    context.lineWidth = 1.5;
+    for (const place of room.places) {
+      context.beginPath();
+      context.arc(...center(place), CELL * 0.28, 0, Math.PI * 2);
+      context.stroke();
+    }
+  }
+  for (const part of robotArea.conveyor) fill(palette.conveyorBelt, cell(part), 3);
+  fill(palette.charge, cell(robotArea.capsule), 5);
+  for (const pad of robotArea.chargingPads) fill(palette.charge, cell(pad), 6);
 
   context.fillStyle = palette.dockMarker;
   for (const dock of [...warehouse.inboundDocks, ...warehouse.outboundDocks]) {
