@@ -84,6 +84,15 @@ export interface Operator extends Walker {
   readonly waitTicks: number;
   /** Stamina from 0 (exhausted) to 1 (fresh). See `fatigue.ts`. */
   readonly energy: number;
+  /** Dismissed: finishes the current task, walks home and leaves the floor. */
+  readonly leaving: boolean;
+}
+
+/** A hired operator on the way in, who appears at their home once `tick` is reached. */
+export interface Arrival {
+  readonly id: number;
+  readonly home: Point;
+  readonly tick: number;
 }
 
 export interface SimStats {
@@ -102,6 +111,9 @@ export interface SimStats {
   readonly breakTicks: number;
   /** Sum over ticks of operators on the payroll, on a break or not. Salaries accrue from it. */
   readonly staffTicks: number;
+  /** Operators hired and dismissed by the player; each costs a one-off fee. */
+  readonly hires: number;
+  readonly dismissals: number;
 }
 
 /** Everything that changes during a run. Plain data: serialisable and comparable. */
@@ -109,6 +121,10 @@ export interface SimState {
   readonly tick: number;
   readonly rng: number;
   readonly operators: readonly Operator[];
+  /** Hired operators not on the floor yet, in hiring order. */
+  readonly arrivals: readonly Arrival[];
+  /** Id the next hired operator gets; ids are never reused. */
+  readonly nextOperatorId: number;
   readonly slots: readonly SlotStatus[];
   readonly receiving: Receiving;
   /** One entry per scenario order, indexed by order id. */
@@ -131,29 +147,16 @@ export function createInitialState({ warehouse, level, scenario }: World): SimSt
   const stocked = new Set(scenario.initialStock.map(({ slotId }) => slotId));
   const slots = warehouse.slots.map(({ id }): SlotStatus => (stocked.has(id) ? 'stored' : 'empty'));
 
-  const operators = Array.from({ length: level.team.operators }, (_, id): Operator => {
-    const home = at(warehouse.operatorHomes, id);
-    return {
-      id,
-      home,
-      from: home,
-      to: home,
-      progress: 0,
-      path: [],
-      blockedTicks: 0,
-      giveWayTicks: 0,
-      phase: 'idle',
-      task: null,
-      carrying: false,
-      waitTicks: 0,
-      energy: 1,
-    };
-  });
+  const operators = Array.from({ length: level.team.operators }, (_, id) =>
+    newOperator(id, at(warehouse.operatorHomes, id)),
+  );
 
   return {
     tick: 0,
     rng: deriveSeed(level.seed, SIMULATION_STREAM),
     operators,
+    arrivals: [],
+    nextOperatorId: operators.length,
     slots,
     receiving: createReceiving(warehouse.inboundDocks.length),
     orders: createOrders(scenario, warehouse.outboundDocks.length),
@@ -167,7 +170,29 @@ export function createInitialState({ warehouse, level, scenario }: World): SimSt
       congestionTicks: 0,
       breakTicks: 0,
       staffTicks: 0,
+      hires: 0,
+      dismissals: 0,
     },
+  };
+}
+
+/** A fresh, idle operator standing at their home. */
+function newOperator(id: number, home: Point): Operator {
+  return {
+    id,
+    home,
+    from: home,
+    to: home,
+    progress: 0,
+    path: [],
+    blockedTicks: 0,
+    giveWayTicks: 0,
+    phase: 'idle',
+    task: null,
+    carrying: false,
+    waitTicks: 0,
+    energy: 1,
+    leaving: false,
   };
 }
 
@@ -198,7 +223,8 @@ export function step(world: World, state: SimState): SimState {
     tick: state.tick,
     occupancy: new Occupancy(warehouse.grid, state.operators),
   };
-  const operators = state.operators.map((operator) => {
+  const { arrived, arrivals } = admitArrivals(state, context.occupancy);
+  const moved = [...state.operators, ...arrived].map((operator) => {
     context.occupancy.remove(operator);
     let next: Operator;
     [next, shared] = stepOperator(context, operator, shared);
@@ -206,6 +232,7 @@ export function step(world: World, state: SimState): SimState {
     const effort = effortOf(operator, next);
     return { ...next, energy: nextEnergy(next.energy, effort, level.shift.durationTicks) };
   });
+  const operators = moved.filter((operator) => !hasLeft(operator));
 
   const heldUp = operators.filter(isHeldUp).length;
   const onBreak = operators.filter((operator) => operator.phase === 'resting').length;
@@ -215,7 +242,46 @@ export function step(world: World, state: SimState): SimState {
     breakTicks: shared.stats.breakTicks + onBreak,
     staffTicks: shared.stats.staffTicks + operators.length,
   };
-  return { tick: state.tick + 1, operators, ...shared, stats };
+  return {
+    tick: state.tick + 1,
+    operators,
+    arrivals,
+    nextOperatorId: state.nextOperatorId,
+    ...shared,
+    stats,
+  };
+}
+
+/**
+ * Hired operators whose time has come step onto the floor at their home, unless someone
+ * is standing there; then they wait for the next tick.
+ */
+function admitArrivals(
+  state: SimState,
+  occupancy: Occupancy,
+): { arrived: Operator[]; arrivals: readonly Arrival[] } {
+  const arrived: Operator[] = [];
+  const waiting: Arrival[] = [];
+  for (const arrival of state.arrivals) {
+    if (arrival.tick > state.tick || occupancy.isOccupied(arrival.home)) {
+      waiting.push(arrival);
+      continue;
+    }
+    const operator = newOperator(arrival.id, arrival.home);
+    occupancy.add(operator);
+    arrived.push(operator);
+  }
+  return { arrived, arrivals: waiting.length === state.arrivals.length ? state.arrivals : waiting };
+}
+
+/** A dismissed operator leaves once standing at home with nothing in hand. */
+function hasLeft(operator: Operator): boolean {
+  return (
+    operator.leaving &&
+    operator.task === null &&
+    !isMoving(operator) &&
+    samePoint(operator.from, operator.home)
+  );
 }
 
 /** How hard an operator worked this tick, judged from where they were and are now. */
@@ -245,6 +311,15 @@ function stepOperator(context: Context, operator: Operator, shared: Shared): [Op
     case 'idle': {
       const { home } = operator;
       const atHome = samePoint(operator.from, home);
+      // Dismissed: no more work, just the walk home (`step` removes them there).
+      if (operator.leaving) {
+        return atHome
+          ? [operator, shared]
+          : [
+              { ...operator, ...routeTo(warehouse.grid, operator.from, home), phase: 'returning' },
+              shared,
+            ];
+      }
       // A tired operator finishes the current task, then takes a break at home.
       if (needsRest(operator.energy)) {
         return atHome
@@ -265,7 +340,7 @@ function stepOperator(context: Context, operator: Operator, shared: Shared): [Op
 
     case 'returning': {
       // Work beats walking home: take a task as soon as one appears.
-      if (!isMoving(operator) && !needsRest(operator.energy)) {
+      if (!isMoving(operator) && !needsRest(operator.energy) && !operator.leaving) {
         const [assigned, next] = assignTask(context, operator, shared);
         if (assigned !== operator) return [assigned, next];
       }

@@ -26,7 +26,7 @@ export function testLevel({
     title: 'Test',
     seed,
     shift: { startMinute: 6 * 60, endMinute: 14 * 60, durationTicks },
-    team: { operators },
+    team: { operators, hireDelayMinutes: 30 },
     scenario: {
       initialStock: 0.3,
       fragileRatio: 0,
@@ -36,6 +36,8 @@ export function testLevel({
     },
     economy: {
       startingWallet: 1000,
+      hiringFee: 150,
+      dismissalCost: 400,
       salaryPerHour: 10,
       orderRevenue: 100,
       penalties: { overdueOrder: 60, truckWaitPerHour: 30 },

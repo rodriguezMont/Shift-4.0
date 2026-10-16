@@ -19,27 +19,38 @@ function withStats(stats: Partial<SimStats>, tick = 100): SimState {
 describe('economyOf', () => {
   it('starts the shift with the level wallet, no score and no stars', () => {
     expect(economyOf(world, initial)).toEqual({
-      ledger: { revenue: 0, salaries: 0, overduePenalties: 0, truckWaitPenalties: 0 },
+      ledger: {
+        revenue: 0,
+        salaries: 0,
+        hiringFees: 0,
+        dismissalCosts: 0,
+        overduePenalties: 0,
+        truckWaitPenalties: 0,
+      },
       wallet: world.level.economy.startingWallet,
       score: 0,
       stars: 0,
     });
   });
 
-  it('books revenue, salaries and truck waiting from the run statistics', () => {
+  it('books revenue, salaries, staffing and truck waiting from the run statistics', () => {
     const state = withStats({
       ordersShipped: 5,
       ordersLate: 2,
       staffTicks: 6000, // ten operator-hours
       dockWaitTicks: 1200, // two truck-hours
+      hires: 2,
+      dismissals: 1,
     });
     expect(ledgerOf(world, state)).toEqual({
       revenue: 500,
       salaries: 100,
+      hiringFees: 300,
+      dismissalCosts: 400,
       overduePenalties: 0,
       truckWaitPenalties: 60,
     });
-    expect(economyOf(world, state).wallet).toBe(1000 + 500 - 100 - 60);
+    expect(economyOf(world, state).wallet).toBe(1000 + 500 - 100 - 300 - 400 - 60);
   });
 
   it('charges an overdue order the moment its deadline passes, not at the end', () => {

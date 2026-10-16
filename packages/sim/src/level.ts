@@ -23,6 +23,10 @@ export interface ArrivalStream {
 /** Money values for a level. Amounts are in whole dollars; see `economy.ts`. */
 export interface EconomyConfig {
   readonly startingWallet: number;
+  /** Paid once, when the player hires an operator. */
+  readonly hiringFee: number;
+  /** Paid once, when the player dismisses an operator. Always above the hiring fee. */
+  readonly dismissalCost: number;
   /** Paid per operator for every hour of the shift, breaks included. */
   readonly salaryPerHour: number;
   /** Earned when an order ships, on time or late. */
@@ -50,7 +54,10 @@ export interface LevelConfig {
     readonly durationTicks: number;
   };
   readonly team: {
+    /** Operators on the floor when the shift starts. */
     readonly operators: number;
+    /** Game minutes between hiring an operator and their arrival on the floor. */
+    readonly hireDelayMinutes: number;
   };
   /** Inputs for the seeded generator that plans the day's trucks and orders. */
   readonly scenario: {
@@ -94,18 +101,25 @@ const peak = z
 
 const money = z.int().min(0);
 
-const economy = z.strictObject({
-  startingWallet: money,
-  salaryPerHour: money,
-  orderRevenue: money,
-  penalties: z.strictObject({
-    overdueOrder: money,
-    truckWaitPerHour: money,
-  }),
-  stars: z
-    .tuple([z.int().min(1), z.int().min(1), z.int().min(1)])
-    .refine(([one, two, three]) => one < two && two < three, 'expected rising star thresholds'),
-});
+const economy = z
+  .strictObject({
+    startingWallet: money,
+    hiringFee: money,
+    dismissalCost: money,
+    salaryPerHour: money,
+    orderRevenue: money,
+    penalties: z.strictObject({
+      overdueOrder: money,
+      truckWaitPerHour: money,
+    }),
+    stars: z
+      .tuple([z.int().min(1), z.int().min(1), z.int().min(1)])
+      .refine(([one, two, three]) => one < two && two < three, 'expected rising star thresholds'),
+  })
+  .refine(({ hiringFee, dismissalCost }) => dismissalCost > hiringFee, {
+    message: 'dismissing must cost more than hiring',
+    path: ['dismissalCost'],
+  });
 
 const arrivalStream = {
   count: z.int().min(0).max(MAX_ARRIVALS),
@@ -126,6 +140,7 @@ const levelFileSchema = z
     }),
     team: z.strictObject({
       operators: z.int().min(1).max(MAX_OPERATORS),
+      hireDelayMinutes: z.int().min(0),
     }),
     scenario: z.strictObject({
       initialStock: ratio,

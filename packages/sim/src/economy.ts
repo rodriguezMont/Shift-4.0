@@ -8,8 +8,8 @@
  * once. An overdue order can still ship, for fewer points. Nothing is settled at the
  * end of the shift.
  *
- * The wallet and the score are deliberately separate. The wallet pays salaries and
- * penalties and may go negative; the score only reflects how the operation served its
+ * The wallet and the score are deliberately separate. The wallet pays salaries, hiring
+ * and dismissal costs and penalties, and may go negative (spending then stops); the score only reflects how the operation served its
  * orders, so spending money never costs score.
  */
 import { minutesPerTick } from './clock';
@@ -27,6 +27,8 @@ export const ORDER_POINTS = { onTime: 100, late: 60, overdue: 40 } as const;
 export interface Ledger {
   readonly revenue: number;
   readonly salaries: number;
+  readonly hiringFees: number;
+  readonly dismissalCosts: number;
   readonly overduePenalties: number;
   readonly truckWaitPenalties: number;
 }
@@ -58,18 +60,25 @@ export function ledgerOf(world: World, state: SimState): Ledger {
 }
 
 function bookLedger({ level }: World, stats: SimStats, overdue: number): Ledger {
-  const { orderRevenue, salaryPerHour, penalties } = level.economy;
+  const { orderRevenue, salaryPerHour, hiringFee, dismissalCost, penalties } = level.economy;
   const hoursPerTick = minutesPerTick(level) / 60;
   return {
     revenue: stats.ordersShipped * orderRevenue,
     salaries: stats.staffTicks * hoursPerTick * salaryPerHour,
+    hiringFees: stats.hires * hiringFee,
+    dismissalCosts: stats.dismissals * dismissalCost,
     overduePenalties: overdue * penalties.overdueOrder,
     truckWaitPenalties: stats.dockWaitTicks * hoursPerTick * penalties.truckWaitPerHour,
   };
 }
 
 export function walletOf({ level }: World, ledger: Ledger): number {
-  const costs = ledger.salaries + ledger.overduePenalties + ledger.truckWaitPenalties;
+  const costs =
+    ledger.salaries +
+    ledger.hiringFees +
+    ledger.dismissalCosts +
+    ledger.overduePenalties +
+    ledger.truckWaitPenalties;
   return level.economy.startingWallet + ledger.revenue - costs;
 }
 

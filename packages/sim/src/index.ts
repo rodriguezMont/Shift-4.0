@@ -6,6 +6,16 @@ export {
   TICKS_PER_SECOND,
   type ShiftClock,
 } from './clock';
+export {
+  applyAction,
+  dismissBlocker,
+  hireBlocker,
+  replay,
+  type Action,
+  type ActionError,
+  type ActionRequest,
+  type ActionResult,
+} from './actions';
 export { economyOf, ORDER_POINTS, type Economy, type Ledger } from './economy';
 export { samePoint, type Point } from './geometry';
 export { isWalkable, type Grid } from './grid';
@@ -33,6 +43,7 @@ export {
   type PutawayTask,
   type SimState,
   type SimStats,
+  type Arrival,
   type SlotStatus,
   type Task,
   type TaskKind,
