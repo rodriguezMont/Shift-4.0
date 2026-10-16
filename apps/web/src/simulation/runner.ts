@@ -1,4 +1,5 @@
 import {
+  applyAction,
   createInitialState,
   createWorld,
   isShiftOver,
@@ -6,6 +7,9 @@ import {
   operatorPosition,
   step,
   TICKS_PER_SECOND,
+  type Action,
+  type ActionError,
+  type ActionRequest,
   type LevelConfig,
   type Point,
   type SimState,
@@ -46,6 +50,8 @@ export class SimulationRunner {
   private previous: SimState;
   private current: SimState;
   private playback: Playback = { speed: 1, paused: false, finished: false };
+  /** Every action the player took this run, in order: with the level, it replays the run. */
+  private actions: readonly Action[] = [];
   private accumulator = 0;
   private lastTime: number | null = null;
   private frameId: number | null = null;
@@ -81,8 +87,26 @@ export class SimulationRunner {
     this.updatePlayback({ paused: !this.playback.paused });
   }
 
-  /** Starts the same shift again from its first tick. */
+  /**
+   * Takes a player action on the current tick, paused or not. The simulation validates
+   * it; an accepted action joins the log. @returns why it was refused, or null.
+   */
+  act(request: ActionRequest): ActionError | null {
+    const action: Action = { ...request, tick: this.current.tick };
+    const result = applyAction(this.world, this.current, action);
+    if (!result.ok) return result.error;
+    this.current = result.state;
+    this.actions = [...this.actions, action];
+    this.notify();
+    return null;
+  }
+
+  /** The run's action log so far. */
+  readonly getActions = (): readonly Action[] => this.actions;
+
+  /** Starts the same shift again from its first tick, with an empty action log. */
   restart(): void {
+    this.actions = [];
     this.current = createInitialState(this.world);
     this.previous = this.current;
     this.accumulator = 0;

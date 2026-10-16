@@ -5,6 +5,7 @@ import { DayPlan } from './DayPlan';
 import { formatMinuteOfDay } from './format';
 import { Results } from './Results';
 import { ShiftStats } from './ShiftStats';
+import { Team } from './Team';
 
 export type View = 'scene' | 'debug';
 
@@ -35,6 +36,7 @@ export function Hud({ view, onToggleView }: HudProps) {
       <PlaybackControls />
 
       <Results />
+      <Team />
       <DayPlan />
       <ShiftStats />
 

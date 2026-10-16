@@ -1,6 +1,7 @@
 import { MapControls, OrthographicCamera } from '@react-three/drei';
 import { Canvas, useThree } from '@react-three/fiber';
 import { palette } from '../palette';
+import { useSelection } from '../simulation/selection';
 import type { Vec3 } from './coords';
 import { Docks } from './Docks';
 import { Floor } from './Floor';
@@ -13,8 +14,16 @@ const FRAME_HEIGHT = 28;
 const SHADOW_EXTENT = 20;
 
 export function WarehouseScene() {
+  const { select } = useSelection();
   return (
-    <Canvas shadows dpr={[1, 2]}>
+    // A click that hits no operator clears the selection.
+    <Canvas
+      shadows
+      dpr={[1, 2]}
+      onPointerMissed={() => {
+        select(null);
+      }}
+    >
       <color attach="background" args={[palette.background]} />
       <IsometricCamera />
       <ambientLight intensity={0.75} />
