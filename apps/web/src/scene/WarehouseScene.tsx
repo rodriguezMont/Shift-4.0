@@ -1,6 +1,7 @@
 import { MapControls, OrthographicCamera } from '@react-three/drei';
 import { Canvas, useThree } from '@react-three/fiber';
 import { palette } from '../palette';
+import { Areas } from './Areas';
 import { useSelection } from '../simulation/selection';
 import type { Vec3 } from './coords';
 import { Docks } from './Docks';
@@ -9,9 +10,9 @@ import { Operators } from './Operators';
 import { Racks, StoredBoxes } from './Racks';
 
 /** Approximate on-screen extent of the floor plus trucks, in world units, at isometric angle. */
-const FRAME_WIDTH = 46;
-const FRAME_HEIGHT = 28;
-const SHADOW_EXTENT = 20;
+const FRAME_WIDTH = 52;
+const FRAME_HEIGHT = 32;
+const SHADOW_EXTENT = 24;
 
 export function WarehouseScene() {
   const { select } = useSelection();
@@ -38,6 +39,7 @@ export function WarehouseScene() {
         shadow-camera-bottom={-SHADOW_EXTENT}
       />
       <Floor />
+      <Areas />
       <Racks />
       <StoredBoxes />
       <Docks />
@@ -50,7 +52,7 @@ export function WarehouseScene() {
  * Looks slightly left of the floor's centre so the plant sits right of the HUD panel,
  * keeping the inbound docks visible. Moving along (-1, 0, 1) is a pure screen-left shift.
  */
-const VIEW_TARGET: Vec3 = [-3, 0, 3];
+const VIEW_TARGET: Vec3 = [-4.5, 0, 4.5];
 const CAMERA_OFFSET = 30;
 
 /** Orthographic camera on the (1, 1, 1) diagonal: true isometric. Pan and zoom only. */

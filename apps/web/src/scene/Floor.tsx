@@ -1,48 +1,57 @@
+import type { Rect, StaffRoomKind } from '@shift40/sim';
 import { useRunner } from '../simulation/context';
 import { palette } from '../palette';
-import { toScene } from './coords';
+import { rectToScene } from './coords';
 
+const ROOM_FLOOR: Record<StaffRoomKind, string> = {
+  canteen: palette.canteenFloor,
+  cafe: palette.cafeFloor,
+};
+
+/** Ground of every area: the working floor with its dock zones, the staff rooms and the robot area. */
 export function Floor() {
   const { warehouse } = useRunner();
-  const { width, height } = warehouse.grid;
-  const zoneColumns = warehouse.dockZoneColumns;
-  const middleRow = (height - 1) / 2;
+  const { floor, dockZoneColumns, staffRooms, robotArea } = warehouse;
+  const zone = (x: number): Rect => ({ ...floor, x, width: dockZoneColumns });
 
   return (
     <group>
-      <mesh rotation-x={-Math.PI / 2} position={[0, -0.01, 0]} receiveShadow>
-        <planeGeometry args={[width, height]} />
-        <meshStandardMaterial color={palette.floor} />
-      </mesh>
-
-      <mesh
-        rotation-x={-Math.PI / 2}
-        position={toScene(warehouse, { x: (zoneColumns - 1) / 2, y: middleRow }, 0)}
-        receiveShadow
-      >
-        <planeGeometry args={[zoneColumns, height]} />
-        <meshStandardMaterial color={palette.inboundZone} />
-      </mesh>
-      <mesh
-        rotation-x={-Math.PI / 2}
-        position={toScene(warehouse, { x: width - (zoneColumns + 1) / 2, y: middleRow }, 0)}
-        receiveShadow
-      >
-        <planeGeometry args={[zoneColumns, height]} />
-        <meshStandardMaterial color={palette.outboundZone} />
-      </mesh>
+      <Ground rect={floor} color={palette.floor} elevation={-0.01} />
+      <Ground rect={zone(floor.x)} color={palette.inboundZone} />
+      <Ground rect={zone(floor.x + floor.width - dockZoneColumns)} color={palette.outboundZone} />
+      {staffRooms.map((room) => (
+        <Ground key={room.kind} rect={room.bounds} color={ROOM_FLOOR[room.kind]} />
+      ))}
+      <Ground rect={robotArea.bounds} color={palette.robotFloor} />
 
       {[...warehouse.inboundDocks, ...warehouse.outboundDocks].map((dock) => (
-        <mesh
+        <Ground
           key={`${String(dock.x)}:${String(dock.y)}`}
-          rotation-x={-Math.PI / 2}
-          position={toScene(warehouse, dock, 0.005)}
-          receiveShadow
-        >
-          <planeGeometry args={[0.8, 0.8]} />
-          <meshStandardMaterial color={palette.dockMarker} />
-        </mesh>
+          rect={{ ...dock, width: 1, height: 1 }}
+          inset={0.1}
+          color={palette.dockMarker}
+          elevation={0.005}
+        />
       ))}
     </group>
+  );
+}
+
+interface GroundProps {
+  readonly rect: Rect;
+  readonly color: string;
+  readonly elevation?: number;
+  /** Margin left uncovered on every side, in cells. */
+  readonly inset?: number;
+}
+
+export function Ground({ rect, color, elevation = 0, inset = 0 }: GroundProps) {
+  const { warehouse } = useRunner();
+  const { position, size } = rectToScene(warehouse, rect, elevation);
+  return (
+    <mesh rotation-x={-Math.PI / 2} position={position} receiveShadow>
+      <planeGeometry args={[size[0] - 2 * inset, size[1] - 2 * inset]} />
+      <meshStandardMaterial color={color} />
+    </mesh>
   );
 }
