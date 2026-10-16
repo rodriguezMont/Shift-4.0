@@ -66,7 +66,8 @@ absorb the mid-morning peak. A player who buys nothing still earns one star; one
 who follows the guidance can reach three.
 
 **Wallet and score are separate.** The wallet pays for salaries and purchases; the
-score counts only what the operation delivered. Investing in automation never
+score counts only how the operation served its orders, in real time — points when an
+order ships, a deduction the moment one goes overdue. Investing in automation never
 lowers the score.
 
 **Stamina on both sides.** Operators get tired over the shift; robots drain their

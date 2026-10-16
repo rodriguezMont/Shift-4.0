@@ -1,4 +1,4 @@
-import type { SimState } from '@shift40/sim';
+import { economyOf, type Economy, type SimState } from '@shift40/sim';
 import { createContext, useContext, useSyncExternalStore } from 'react';
 import type { Playback, SimulationRunner } from './runner';
 
@@ -14,6 +14,12 @@ export function useRunner(): SimulationRunner {
 export function useSimState(): SimState {
   const runner = useRunner();
   return useSyncExternalStore(runner.subscribe, runner.getState);
+}
+
+/** Wallet, score and stars for the current tick, derived by the simulation's economy rules. */
+export function useEconomy(): Economy {
+  const { world } = useRunner();
+  return economyOf(world, useSimState());
 }
 
 /** Speed, pause and end-of-shift state; re-renders only when one of them changes. */

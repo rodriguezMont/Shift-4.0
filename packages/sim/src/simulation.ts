@@ -97,6 +97,8 @@ export interface SimStats {
   readonly congestionTicks: number;
   /** Sum over ticks of operators on a break. */
   readonly breakTicks: number;
+  /** Sum over ticks of operators on the payroll, on a break or not. Salaries accrue from it. */
+  readonly staffTicks: number;
 }
 
 /** Everything that changes during a run. Plain data: serialisable and comparable. */
@@ -160,6 +162,7 @@ export function createInitialState({ warehouse, level, scenario }: World): SimSt
       dockWaitTicks: 0,
       congestionTicks: 0,
       breakTicks: 0,
+      staffTicks: 0,
     },
   };
 }
@@ -206,6 +209,7 @@ export function step(world: World, state: SimState): SimState {
     ...shared.stats,
     congestionTicks: shared.stats.congestionTicks + heldUp,
     breakTicks: shared.stats.breakTicks + onBreak,
+    staffTicks: shared.stats.staffTicks + operators.length,
   };
   return { tick: state.tick + 1, operators, ...shared, stats };
 }

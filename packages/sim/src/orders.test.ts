@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { claimOrderBox, createOrders, deliverBox, nextOrderToPick, openOrderCount } from './orders';
+import {
+  claimOrderBox,
+  createOrders,
+  deliverBox,
+  nextOrderToPick,
+  openOrderCount,
+  overdueOrderCount,
+} from './orders';
 import type { Order, Scenario } from './scenario';
 
 const order = (id: number, releaseTick: number, deadlineTick: number, quantity: number): Order => ({
@@ -50,6 +57,21 @@ describe('orders', () => {
     const orders = createOrders(scenario, 3);
     expect(openOrderCount(scenario, orders, 50)).toBe(2);
     expect(openOrderCount(scenario, orders, 150)).toBe(3);
+  });
+
+  it('marks an order overdue the moment its deadline passes, shipped later or not', () => {
+    // Order 2 is due at tick 200. Shipping on the deadline tick is still on time.
+    let orders = claimOrderBox(createOrders(scenario, 3), 2);
+    expect(overdueOrderCount(scenario, orders, 200)).toBe(0);
+    expect(overdueOrderCount(scenario, orders, 201)).toBe(1);
+
+    const onTime = deliverBox(scenario, orders, 2, 200).orders;
+    expect(overdueOrderCount(scenario, onTime, 201)).toBe(0);
+
+    orders = deliverBox(scenario, orders, 2, 250).orders;
+    expect(overdueOrderCount(scenario, orders, 251)).toBe(1);
+    // Orders 1 and 0 follow at their own deadlines.
+    expect(overdueOrderCount(scenario, orders, 501)).toBe(3);
   });
 
   it('spreads orders across the outbound docks', () => {

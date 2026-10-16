@@ -20,6 +20,23 @@ export interface ArrivalStream {
   readonly peaks: readonly Peak[];
 }
 
+/** Money values for a level. Amounts are in whole dollars; see `economy.ts`. */
+export interface EconomyConfig {
+  readonly startingWallet: number;
+  /** Paid per operator for every hour of the shift, breaks included. */
+  readonly salaryPerHour: number;
+  /** Earned when an order ships, on time or late. */
+  readonly orderRevenue: number;
+  readonly penalties: {
+    /** Charged the moment an order's deadline passes before it ships. */
+    readonly overdueOrder: number;
+    /** Charged per hour each truck spends queuing for a free dock. */
+    readonly truckWaitPerHour: number;
+  };
+  /** Minimum score for one, two and three stars. */
+  readonly stars: readonly [one: number, two: number, three: number];
+}
+
 /** A level as the simulation consumes it: validated, with times resolved to numbers. */
 export interface LevelConfig {
   readonly id: string;
@@ -44,6 +61,7 @@ export interface LevelConfig {
     readonly trucks: ArrivalStream & { readonly boxes: Range };
     readonly orders: ArrivalStream & { readonly boxes: Range; readonly deadlineMinutes: Range };
   };
+  readonly economy: EconomyConfig;
 }
 
 const timeOfDay = z
@@ -74,6 +92,21 @@ const peak = z
     weight,
   }));
 
+const money = z.int().min(0);
+
+const economy = z.strictObject({
+  startingWallet: money,
+  salaryPerHour: money,
+  orderRevenue: money,
+  penalties: z.strictObject({
+    overdueOrder: money,
+    truckWaitPerHour: money,
+  }),
+  stars: z
+    .tuple([z.int().min(1), z.int().min(1), z.int().min(1)])
+    .refine(([one, two, three]) => one < two && two < three, 'expected rising star thresholds'),
+});
+
 const arrivalStream = {
   count: z.int().min(0).max(MAX_ARRIVALS),
   peaks: z.array(peak).default([]),
@@ -100,12 +133,13 @@ const levelFileSchema = z
       trucks: z.strictObject({ ...arrivalStream, boxes: range }),
       orders: z.strictObject({ ...arrivalStream, boxes: range, deadlineMinutes: range }),
     }),
+    economy,
   })
   .refine(({ shift }) => shift.end > shift.start, {
     message: 'the shift must end after it starts',
     path: ['shift', 'end'],
   })
-  .transform(({ id, title, seed, shift, team, scenario }): LevelConfig => ({
+  .transform(({ id, title, seed, shift, team, scenario, economy }): LevelConfig => ({
     id,
     title,
     seed,
@@ -116,6 +150,7 @@ const levelFileSchema = z
     },
     team,
     scenario,
+    economy,
   }));
 
 /** Validates raw level data (e.g. a parsed JSON file), throwing a readable error if invalid. */

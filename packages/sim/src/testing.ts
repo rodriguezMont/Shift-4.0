@@ -10,6 +10,7 @@ interface TestLevelOptions {
   readonly operators?: number;
   readonly durationTicks?: number;
   readonly scenario?: Partial<LevelConfig['scenario']>;
+  readonly economy?: Partial<LevelConfig['economy']>;
 }
 
 /** A valid, already-parsed level for tests, so they do not depend on shipped level files. */
@@ -18,6 +19,7 @@ export function testLevel({
   operators = 1,
   durationTicks = TEST_SHIFT_TICKS,
   scenario,
+  economy,
 }: TestLevelOptions = {}): LevelConfig {
   return {
     id: 'test',
@@ -31,6 +33,14 @@ export function testLevel({
       trucks: { count: 6, boxes: [2, 4], peaks: [] },
       orders: { count: 10, boxes: [1, 2], deadlineMinutes: [60, 120], peaks: [] },
       ...scenario,
+    },
+    economy: {
+      startingWallet: 1000,
+      salaryPerHour: 10,
+      orderRevenue: 100,
+      penalties: { overdueOrder: 60, truckWaitPerHour: 30 },
+      stars: [100, 500, 900],
+      ...economy,
     },
   };
 }

@@ -56,7 +56,7 @@ Goal: one level playable end to end with human operators only.
   leave when empty; dock wait time
 - ✅ 1.4b Picking and dispatch: orders pulled from stock and shipped within deadline
 - ✅ 1.5 Operator fatigue and rest
-- ⬜ 1.6 Economy — wallet separate from score — salaries, penalties, star thresholds
+- ✅ 1.6 Economy — wallet separate from score — salaries, penalties, star thresholds
 - ⬜ 1.7 Player actions (hire and dismiss, with arrival delay) recorded in an action
   log, the basis for replay
 - ⬜ 1.8 Baseline policy and automated balance tests
@@ -140,6 +140,13 @@ first one. Decisions already taken in conversation and reflected above:
   maps.
 - Five levels (a working week) for the MVP; the format allows more.
 - Wallet and score are separate, so investment never lowers the score.
+- Scoring is real time, in the spirit of Overcooked: an order scores the moment it
+  ships, and the moment its deadline passes unshipped the score and the wallet take
+  the deduction at once. An overdue order can still ship for fewer points; nothing is
+  settled at the end of the shift. Only operational failures lower the score, and it
+  never shows below zero. No combo multiplier: the player directs the operation
+  rather than executing it, so a multiplier would amplify the baseline's variance,
+  not the player's decisions.
 - No username/password accounts: anonymous play plus Google or GitHub.
 - Mechanical failures and workplace accidents are out of scope for now.
 - One map for the whole campaign. Progression comes from **permanent infrastructure

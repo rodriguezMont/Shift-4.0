@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { TICKS_PER_SECOND } from './clock';
 import { parseLevel } from './level';
+import { ORDER_POINTS } from './economy';
 import { LEVELS } from './levels';
 
 const validScenario = {
@@ -15,6 +16,14 @@ const validScenario = {
   },
 };
 
+const validEconomy = {
+  startingWallet: 300,
+  salaryPerHour: 15,
+  orderRevenue: 100,
+  penalties: { overdueOrder: 60, truckWaitPerHour: 30 },
+  stars: [200, 900, 1500],
+};
+
 const validLevel = {
   id: 'monday',
   title: 'Monday',
@@ -22,6 +31,7 @@ const validLevel = {
   shift: { start: '06:00', end: '14:00', durationSeconds: 210 },
   team: { operators: 2 },
   scenario: validScenario,
+  economy: validEconomy,
 };
 
 describe('parseLevel', () => {
@@ -43,10 +53,12 @@ describe('parseLevel', () => {
           peaks: [{ startMinute: 600, endMinute: 660, weight: 3 }],
         },
       },
+      economy: validEconomy,
     });
   });
 
   const withScenario = (scenario: object) => ({ scenario: { ...validScenario, ...scenario } });
+  const withEconomy = (economy: object) => ({ economy: { ...validEconomy, ...economy } });
 
   it.each([
     ['a malformed time', { shift: { ...validLevel.shift, start: '6am' } }],
@@ -65,6 +77,11 @@ describe('parseLevel', () => {
         trucks: { count: 8, boxes: [1, 2], peaks: [{ at: '09:00', minutes: 30, weight: 0.5 }] },
       }),
     ],
+    ['a missing economy', { economy: undefined }],
+    ['a negative amount', withEconomy({ salaryPerHour: -5 })],
+    ['a fractional amount', withEconomy({ orderRevenue: 99.5 })],
+    ['star thresholds that do not rise', withEconomy({ stars: [900, 900, 1500] })],
+    ['a missing star threshold', withEconomy({ stars: [200, 900] })],
   ])('rejects %s', (_, override) => {
     expect(() => parseLevel({ ...validLevel, ...override })).toThrow(/Invalid level/);
   });
@@ -75,6 +92,14 @@ describe('LEVELS', () => {
     expect(LEVELS.length).toBeGreaterThan(0);
     expect(new Set(LEVELS.map((level) => level.id)).size).toBe(LEVELS.length);
   });
+
+  it.each(LEVELS.map((level) => [level.id, level] as const))(
+    'makes three stars reachable on %s',
+    (_, level) => {
+      const bestScore = level.scenario.orders.count * ORDER_POINTS.onTime;
+      expect(level.economy.stars[2]).toBeLessThanOrEqual(bestScore);
+    },
+  );
 
   it('starts the campaign on Monday', () => {
     expect(LEVELS[0]?.id).toBe('monday');
