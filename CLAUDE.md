@@ -29,7 +29,7 @@ session, read `STATUS.md` first; open the rest only when it answers your questio
 | -------------------------------------- | ------------------------------------------------------------------------------ |
 | `level.ts`                             | Level file schema (Zod) → `LevelConfig`; levels live in `packages/sim/levels/` |
 | `scenario.ts`                          | Seeded plan of the day: stock, trucks, orders, items with true attributes      |
-| `layout.ts`                            | The single floor plan: racks, slots, docks, operator homes                     |
+| `layout.ts`                            | The single floor plan: racks, docks, homes, walls, staff rooms, robot area     |
 | `simulation.ts`                        | `SimState`, `step()`, operator phases, arrivals/departures, baseline policy    |
 | `movement.ts`                          | Walking through traffic: occupancy, waiting, detours, giving way               |
 | `receiving.ts`                         | Inbound docks, truck queue, unloading, which dock to free next                 |

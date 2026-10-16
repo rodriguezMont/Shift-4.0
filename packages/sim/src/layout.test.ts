@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { at, manhattanDistance } from './geometry';
+import { at, manhattanDistance, samePoint, type Point } from './geometry';
 import { isWalkable } from './grid';
-import { createWarehouse, MAX_OPERATORS } from './layout';
+import { cellsOf, createWarehouse, MAX_OPERATORS, type Rect } from './layout';
 import { findPath } from './pathfinding';
 
 describe('createWarehouse', () => {
@@ -36,6 +36,74 @@ describe('createWarehouse', () => {
       for (const dock of warehouse.outboundDocks) {
         expect(findPath(warehouse.grid, slot.access, dock)).not.toBeNull();
       }
+    }
+  });
+
+  const inside = ({ x, y, width, height }: Rect, point: Point) =>
+    point.x >= x && point.x < x + width && point.y >= y && point.y < y + height;
+  const home = at(warehouse.operatorHomes, 0);
+
+  it('keeps docks, racks and homes on the warehouse floor', () => {
+    const onFloor = [
+      ...warehouse.inboundDocks,
+      ...warehouse.outboundDocks,
+      ...warehouse.operatorHomes,
+      ...warehouse.slots.flatMap(({ rack, access }) => [rack, access]),
+    ];
+    for (const point of onFloor) expect(inside(warehouse.floor, point)).toBe(true);
+  });
+
+  it('walls the floor off, leaving one door per staff room', () => {
+    for (const wall of warehouse.walls) expect(isWalkable(warehouse.grid, wall)).toBe(false);
+    for (const { door } of warehouse.staffRooms) {
+      expect(isWalkable(warehouse.grid, door)).toBe(true);
+      expect(warehouse.walls).not.toContainEqual(door);
+    }
+  });
+
+  it('seats four in the canteen and four at the café, every place reachable from the floor', () => {
+    const [canteen, cafe] = warehouse.staffRooms;
+    expect(canteen?.kind).toBe('canteen');
+    expect(cafe?.kind).toBe('cafe');
+    // The canteen sits on the receiving side, the café towards dispatch.
+    expect(canteen && cafe && canteen.door.x < cafe.door.x).toBe(true);
+
+    for (const room of warehouse.staffRooms) {
+      expect(room.places).toHaveLength(4);
+      for (const place of room.places) {
+        expect(inside(room.bounds, place)).toBe(true);
+        expect(isWalkable(warehouse.grid, place)).toBe(true);
+        expect(samePoint(place, { x: room.door.x, y: room.door.y + 1 })).toBe(false);
+        expect(findPath(warehouse.grid, home, place)).not.toBeNull();
+      }
+      for (const { cells } of room.furniture) {
+        for (const cell of cellsOf(cells)) {
+          expect(inside(room.bounds, cell)).toBe(true);
+          expect(isWalkable(warehouse.grid, cell)).toBe(false);
+        }
+      }
+    }
+  });
+
+  it('only connects the two rooms through the warehouse floor', () => {
+    const [canteen, cafe] = warehouse.staffRooms;
+    if (!canteen || !cafe) throw new Error('missing staff rooms');
+    const path = findPath(warehouse.grid, at(canteen.places, 0), at(cafe.places, 0));
+    expect(path?.some((cell) => inside(warehouse.floor, cell))).toBe(true);
+  });
+
+  it('builds the robot area behind a wall nobody on the floor can cross yet', () => {
+    const { robotArea } = warehouse;
+    expect(robotArea.conveyor).toContainEqual(robotArea.capsule);
+    // The scene draws the belt as one straight run: consecutive cells along a row.
+    robotArea.conveyor.forEach((cell, i) => {
+      expect(cell).toEqual({ x: at(robotArea.conveyor, 0).x + i, y: at(robotArea.conveyor, 0).y });
+    });
+    expect(robotArea.chargingPads.length).toBeGreaterThan(0);
+    const equipment = [...robotArea.conveyor, ...robotArea.chargingPads];
+    for (const cell of equipment) expect(inside(robotArea.bounds, cell)).toBe(true);
+    for (const pad of robotArea.chargingPads) {
+      expect(findPath(warehouse.grid, home, pad)).toBeNull();
     }
   });
 });

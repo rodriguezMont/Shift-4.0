@@ -20,6 +20,16 @@ export const palette = {
   truckInterior: '#1a1d22',
   dockFrame: '#5b6575',
   route: '#2f6fb0',
+  wall: '#aeb5bf',
+  canteenFloor: '#e6d2b5',
+  cafeFloor: '#e3d8cc',
+  robotFloor: '#c7d0da',
+  furnitureWood: '#b07a4a',
+  furnitureLight: '#f2f3f5',
+  furnitureDark: '#3a3f47',
+  conveyorBelt: '#2b3038',
+  conveyorFrame: '#8a939e',
+  charge: '#38bdf8',
 } as const;
 
 export const slotColors: Record<SlotStatus, string> = {
