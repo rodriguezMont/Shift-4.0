@@ -6,10 +6,11 @@ export {
   TICKS_PER_SECOND,
   type ShiftClock,
 } from './clock';
+export { economyOf, ORDER_POINTS, type Economy, type Ledger } from './economy';
 export { samePoint, type Point } from './geometry';
 export { isWalkable, type Grid } from './grid';
 export { createWarehouse, MAX_OPERATORS, type Slot, type Warehouse } from './layout';
-export { parseLevel, type LevelConfig } from './level';
+export { parseLevel, type EconomyConfig, type LevelConfig } from './level';
 export { LEVELS } from './levels';
 export { OPERATOR_SPEED, type Walker } from './movement';
 export { findPath } from './pathfinding';
@@ -48,6 +49,7 @@ export {
   isReleased,
   nextOrderToPick,
   openOrderCount,
+  overdueOrderCount,
   type OrderOutcome,
   type OrderProgress,
 } from './orders';

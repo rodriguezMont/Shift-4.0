@@ -23,5 +23,15 @@
       "deadlineMinutes": [90, 150],
       "peaks": [{ "at": "10:00", "minutes": 60, "weight": 3 }]
     }
+  },
+  "economy": {
+    "startingWallet": 300,
+    "salaryPerHour": 15,
+    "orderRevenue": 100,
+    "penalties": {
+      "overdueOrder": 60,
+      "truckWaitPerHour": 30
+    },
+    "stars": [200, 900, 1500]
   }
 }

@@ -204,6 +204,8 @@ describe('fatigue in the simulation', () => {
     expect(breaks).toBeGreaterThan(0);
     const final = at(states, states.length - 1);
     expect(final.stats.breakTicks).toBeGreaterThan(0);
+    // Salaries accrue for every operator on every tick, breaks included.
+    expect(final.stats.staffTicks).toBe(final.operators.length * final.tick);
   });
 
   it('makes tired operators walk slower', () => {

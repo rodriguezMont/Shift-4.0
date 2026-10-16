@@ -92,6 +92,23 @@ export function openOrderCount(
   ).length;
 }
 
+/**
+ * Orders whose deadline has passed without shipping on time, as seen at the start of
+ * `tick`: a box delivered on the deadline tick itself still counts as on time. An
+ * overdue order stays overdue even if it ships later.
+ */
+export function overdueOrderCount(
+  scenario: Scenario,
+  orders: readonly OrderProgress[],
+  tick: number,
+): number {
+  return scenario.orders.filter(({ id, deadlineTick }) => {
+    if (deadlineTick >= tick) return false;
+    const { shippedTick } = at(orders, id);
+    return shippedTick === null || shippedTick > deadlineTick;
+  }).length;
+}
+
 function update(
   orders: readonly OrderProgress[],
   orderId: number,
