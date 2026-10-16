@@ -1,10 +1,10 @@
 # Status
 
-_Rewritten at the end of each step — current state only. Last update: 2026-10-16, after step 1.8b._
+_Rewritten at the end of each step — current state only. Last update: 2026-10-16, after step 1.9a._
 
 ## Where we are
 
-**Stage 1 — Game core: in progress.** Steps 1.1 to 1.8 are done.
+**Stage 1 — Game core: in progress.** Steps 1.1 to 1.8 and 1.9a are done.
 
 - **1.1** Levels are validated JSON files (`packages/sim/levels/`); a run plays a
   figurative 06:00–14:00 shift with 1×/2×/4× speed, pause and restart.
@@ -70,31 +70,45 @@ _Rewritten at the end of each step — current state only. Last update: 2026-10-
   table and coffee drinkers stand at a bistro table with a cup; the HUD adds meals,
   coffees and queue time, and the debug view marks the queue spots.
 
-Measured on Monday (same seed, no player actions):
+- **1.9a** Deterministic baseline policy (`policy.ts`,
+  [ADR 0001](../decisions/0001-baseline-policy.md)) — the fair reference automation
+  will be measured against. A free operator picks for an order due within 120 game
+  minutes, else unloads, else picks ahead; boxes go to the free slot nearest their
+  inbound dock and are picked from the box nearest the order's outbound dock, with each
+  colleague already heading down an aisle making it count 12 cells further away. The
+  coin toss and random slots are gone: the only randomness left is how people give way.
+  Values chosen from a sweep over three seeds.
 
-| Operators | Shipped | Late | Overdue | Score | Final wallet | Meals · coffees | Break / queue time |
-| --------- | ------- | ---- | ------- | ----- | ------------ | --------------- | ------------------ |
-| 2         | 5 of 18 | 4    | 14      | 0     | -$761        | 1 · 1           | 109 / 0 min        |
-| 6         | 14      | 5    | 6       | 960   | $616         | 2 · 4           | 350 / 0 min        |
-| 12        | 18      | 0    | 0       | 1800  | $660         | 3 · 5           | 411 / 0 min        |
+Measured on Monday (same seed, no player actions), before → after 1.9a:
 
-Compared with 1.8a, six operators ship one more order (score 900 → 960): short café
-breaks put people back to work sooner. Breaks take longer overall because the rooms
-are a walk away from the docks. Widening the doorways from one cell to three cut the
-time twelve operators spend held up at the doors from 29 to 3 minutes a shift (112
-to 0 on a double-load day), and the longest jam from 7 minutes to 1. **The queue barely forms on Monday**: even twelve
-operators tire at different times, and short coffees free places fast. A Monday with
-twice the trucks and orders still showed no queue; a test with twelve operators on a
-far heavier day does fill both rooms and queue.
+| Operators | Shipped | Score       | Stars | Final wallet  | Traffic (min) | Walk to break, median | Lowest energy on arrival |
+| --------- | ------- | ----------- | ----- | ------------- | ------------- | --------------------- | ------------------------ |
+| 2         | 5 → 13  | 0 → 1060    | 0 → 2 | -$761 → $541  | 5 → 2         | 26 → 40 min           | 16% → 5%                 |
+| 3         | 11 → 15 | 380 → 1340  | 1 → 2 | $6 → $741     | 22 → 15       | 19 → 29               | 10% → 9%                 |
+| 4         | 14 → 15 | 1040 → 1420 | 2 → 2 | $608 → $935   | 37 → 41       | 25 → 40               | 6% → 2%                  |
+| 5         | 15 → 17 | 1420 → 1700 | 2 → 3 | $981 → $1349  | 69 → 74       | 22 → 20               | 5% → 4%                  |
+| 6         | 14 → 17 | 960 → 1700  | 2 → 3 | $616 → $1276  | 104 → 100     | 32 → 20               | 6% → 4%                  |
+| 7         | 16 → 16 | 1520 → 1520 | 3 → 3 | $1000 → $1000 | 149 → 159     | 24 → 19               | 0% → 5%                  |
+| 8         | 15 → 18 | 1500 → 1800 | 3 → 3 | $840 → $1140  | 181 → 193     | 24 → 23               | 4% → 0%                  |
+| 10        | 18 → 18 | 1800 → 1800 | 3 → 3 | $900 → $900   | 253 → 235     | 30 → 33               | 8% → 9%                  |
+| 12        | 18 → 18 | 1800 → 1800 | 3 → 3 | $660 → $660   | 317 → 284     | 28 → 33               | 9% → 11%                 |
+
+Results now follow the team instead of luck (one small dip left: seven ship one less
+than six). The baseline is stronger, so **Monday is now too easy**: two operators
+earn two stars and five earn three. Re-tuning it is 1.9b. With two operators,
+picking for due orders keeps them off the trucks all day (the trucks wait and the
+penalty is paid) — an honest cost of understaffing, left in on purpose.
 
 In development, `?operators=N` overrides the team size; production ignores it.
 
 ## Next — resume here
 
-Steps 1.1–1.8a are merged into `main`; 1.8b is on `feat/breaks-in-rooms`, awaiting
-validation. Next is **1.9**: the baseline policy and automated balance tests — the
-place to settle Monday's star, the price of people, and how scarce break places
-should be.
+Steps 1.1–1.8 are merged into `main`; 1.9a is on `feat/baseline-and-balance`,
+awaiting validation. Next is **1.9b**: a balance suite with scripted players (no
+purchases; hire whenever affordable up to N) and a `npm run balance` report, then
+tuning Monday until it meets its targets — one star with no purchases (M1), at most
+two stars with people only (M2), hiring not always best (M3), a visible break queue
+(M4), nobody reaching a break below 10% energy (M5).
 
 ## Open decisions
 
@@ -112,6 +126,10 @@ should be.
   queue (the visible cost of a team that tires together) seldom shows. Fewer places,
   or longer coffees, would make it a real management problem — tune in balancing
   (1.9 / 2.6); "more break-room places" stays an upgrade (2.7).
+- **Urgency window per level.** The baseline's 120-minute urgency window is global
+  while deadlines are level data; a level with deadlines under two hours would make
+  every order urgent and stop unloading. Revisit with levels 2–5 (5.5), e.g. as a
+  share of each order's lead time.
 - Outbound trucks are still static; animating them per order is a candidate for the
   control-room work (5.2).
 - Hosting for the decision worker — Stage 3.
