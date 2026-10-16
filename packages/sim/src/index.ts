@@ -19,7 +19,19 @@ export {
 export { economyOf, ORDER_POINTS, type Economy, type Ledger } from './economy';
 export { samePoint, type Point } from './geometry';
 export { isWalkable, type Grid } from './grid';
-export { createWarehouse, MAX_OPERATORS, type Slot, type Warehouse } from './layout';
+export {
+  cellsOf,
+  createWarehouse,
+  MAX_OPERATORS,
+  type Furniture,
+  type FurnitureKind,
+  type Rect,
+  type RobotArea,
+  type Slot,
+  type StaffRoom,
+  type StaffRoomKind,
+  type Warehouse,
+} from './layout';
 export { parseLevel, type EconomyConfig, type LevelConfig } from './level';
 export { LEVELS } from './levels';
 export { OPERATOR_SPEED, type Walker } from './movement';
