@@ -2,6 +2,7 @@ import {
   createInitialState,
   createWorld,
   isShiftOver,
+  operatorById,
   operatorPosition,
   step,
   TICKS_PER_SECOND,
@@ -108,12 +109,12 @@ export class SimulationRunner {
     };
   }
 
-  /** Operator position smoothed between the last two ticks. */
-  operatorAt(index: number): Point | null {
+  /** Position of the operator with this id, smoothed between the last two ticks. */
+  operatorAt(id: number): Point | null {
     const { previous, current, alpha } = this.frame();
-    const now = current.operators[index];
-    if (now === undefined) return null;
-    const from = operatorPosition(previous.operators[index] ?? now);
+    const now = operatorById(current.operators, id);
+    if (now === null) return null;
+    const from = operatorPosition(operatorById(previous.operators, id) ?? now);
     const to = operatorPosition(now);
     return { x: from.x + (to.x - from.x) * alpha, y: from.y + (to.y - from.y) * alpha };
   }

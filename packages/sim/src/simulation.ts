@@ -74,7 +74,10 @@ export type OperatorPhase =
   'idle' | 'returning' | 'toBreak' | 'resting' | 'toPickup' | 'picking' | 'toDropoff' | 'dropping';
 
 export interface Operator extends Walker {
+  /** Unique within a run and never reused, so views and player actions can name an operator. */
   readonly id: number;
+  /** Where the operator starts, waits when idle and takes breaks. */
+  readonly home: Point;
   readonly phase: OperatorPhase;
   readonly task: Task | null;
   readonly carrying: boolean;
@@ -132,6 +135,7 @@ export function createInitialState({ warehouse, level, scenario }: World): SimSt
     const home = at(warehouse.operatorHomes, id);
     return {
       id,
+      home,
       from: home,
       to: home,
       progress: 0,
@@ -225,6 +229,11 @@ function effortOf(before: Operator, after: Operator): Effort {
   return after.phase === 'idle' ? 'waiting' : 'still';
 }
 
+/** The operator with this id, wherever it sits in the list; null once it is gone. */
+export function operatorById(operators: readonly Operator[], id: number): Operator | null {
+  return operators.find((operator) => operator.id === id) ?? null;
+}
+
 /** Interpolated position between the cells an operator is walking across. */
 export function operatorPosition(operator: Operator): Point {
   return walkerPosition(operator);
@@ -234,7 +243,7 @@ function stepOperator(context: Context, operator: Operator, shared: Shared): [Op
   const { warehouse, scenario } = context.world;
   switch (operator.phase) {
     case 'idle': {
-      const home = at(warehouse.operatorHomes, operator.id);
+      const { home } = operator;
       const atHome = samePoint(operator.from, home);
       // A tired operator finishes the current task, then takes a break at home.
       if (needsRest(operator.energy)) {

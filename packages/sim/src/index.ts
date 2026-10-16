@@ -24,6 +24,7 @@ export {
 } from './scenario';
 export {
   createInitialState,
+  operatorById,
   operatorPosition,
   step,
   type Operator,

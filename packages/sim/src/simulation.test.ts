@@ -148,6 +148,15 @@ describe('aisle traffic', () => {
     expect(lostPerOperator(MAX_OPERATORS)).toBeGreaterThan(lostPerOperator(2));
   });
 
+  it('gives each operator a unique id and its own home, in floor-plan order', () => {
+    const world = testWorld({ operators: 5 });
+    const { operators } = createInitialState(world);
+    expect(new Set(operators.map((operator) => operator.id)).size).toBe(5);
+    expect(operators.map((operator) => operator.home)).toEqual(
+      world.warehouse.operatorHomes.slice(0, 5),
+    );
+  });
+
   it('starts everyone at their own home and keeps idle operators there', () => {
     const world = testWorld({
       operators: 6,
@@ -155,7 +164,7 @@ describe('aisle traffic', () => {
     });
     const final = at(run(world, 200), 200);
     final.operators.forEach((operator) => {
-      expect(operator.from).toEqual(world.warehouse.operatorHomes[operator.id]);
+      expect(operator.from).toEqual(operator.home);
       expect(operator.phase).toBe('idle');
     });
   });
@@ -190,7 +199,7 @@ describe('fatigue in the simulation', () => {
         const before = at(previous.operators, index);
         if (operator.phase === 'resting') {
           expect(operator.task).toBeNull();
-          expect(operator.from).toEqual(world.warehouse.operatorHomes[operator.id]);
+          expect(operator.from).toEqual(operator.home);
           if (before.phase !== 'resting') {
             breaks++;
             expect(before.energy).toBeLessThan(REST_BELOW);

@@ -1,5 +1,5 @@
 import { useFrame } from '@react-three/fiber';
-import { REST_BELOW, samePoint } from '@shift40/sim';
+import { operatorById, REST_BELOW, samePoint } from '@shift40/sim';
 import { useRef } from 'react';
 import type { Group, Mesh, MeshBasicMaterial } from 'three';
 import { useRunner, useSimState } from '../simulation/context';
@@ -25,14 +25,14 @@ const ENERGY_COLORS = {
 
 export function Operators() {
   const { operators } = useSimState();
-  return operators.map((operator) => <OperatorFigure key={operator.id} index={operator.id} />);
+  return operators.map((operator) => <OperatorFigure key={operator.id} id={operator.id} />);
 }
 
 /**
  * Low-poly worker with a stamina bar; position, heading and energy are driven per frame
  * from the runner, not React state.
  */
-function OperatorFigure({ index }: { index: number }) {
+function OperatorFigure({ id }: { id: number }) {
   const runner = useRunner();
   const root = useRef<Group>(null);
   const turn = useRef<Group>(null);
@@ -44,8 +44,8 @@ function OperatorFigure({ index }: { index: number }) {
   const heading = useRef(0);
 
   useFrame(({ clock }, delta) => {
-    const operator = runner.getState().operators[index];
-    const position = runner.operatorAt(index);
+    const operator = operatorById(runner.getState().operators, id);
+    const position = runner.operatorAt(id);
     if (!operator || !position || !root.current || !turn.current || !body.current) return;
     if (!carriedBox.current || !energyBar.current || !energyFill.current) return;
 
