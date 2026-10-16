@@ -82,7 +82,9 @@ function drawFrame(context: CanvasRenderingContext2D, runner: SimulationRunner):
   fill(palette.robotFloor, robotArea.bounds);
   for (const room of staffRooms) {
     fill(room.kind === 'canteen' ? palette.canteenFloor : palette.cafeFloor, room.bounds);
-    fill(room.kind === 'canteen' ? palette.canteenFloor : palette.cafeFloor, cell(room.door));
+    for (const gap of room.doorway) {
+      fill(room.kind === 'canteen' ? palette.canteenFloor : palette.cafeFloor, cell(gap));
+    }
     for (const piece of room.furniture) {
       for (const part of cellsOf(piece.cells)) fill(FURNITURE_COLORS[piece.kind], cell(part), 2);
     }
@@ -93,6 +95,12 @@ function drawFrame(context: CanvasRenderingContext2D, runner: SimulationRunner):
       context.arc(...center(place), CELL * 0.28, 0, Math.PI * 2);
       context.stroke();
     }
+    // Queue spots beside the door, where people wait when every place is taken.
+    context.setLineDash([3, 3]);
+    for (const spot of room.queue) {
+      context.strokeRect(spot.x * CELL + 4, spot.y * CELL + 4, CELL - 8, CELL - 8);
+    }
+    context.setLineDash([]);
   }
   for (const part of robotArea.conveyor) fill(palette.conveyorBelt, cell(part), 3);
   fill(palette.charge, cell(robotArea.capsule), 5);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { at, manhattanDistance, samePoint, type Point } from './geometry';
 import { isWalkable } from './grid';
-import { cellsOf, createWarehouse, MAX_OPERATORS, type Rect } from './layout';
+import { cellsOf, createWarehouse, MAX_OPERATORS, mayStepAside, type Rect } from './layout';
 import { findPath } from './pathfinding';
 
 describe('createWarehouse', () => {
@@ -53,11 +53,18 @@ describe('createWarehouse', () => {
     for (const point of onFloor) expect(inside(warehouse.floor, point)).toBe(true);
   });
 
-  it('walls the floor off, leaving one door per staff room', () => {
+  it('walls the floor off, leaving one doorway three people wide per staff room', () => {
     for (const wall of warehouse.walls) expect(isWalkable(warehouse.grid, wall)).toBe(false);
-    for (const { door } of warehouse.staffRooms) {
-      expect(isWalkable(warehouse.grid, door)).toBe(true);
-      expect(warehouse.walls).not.toContainEqual(door);
+    for (const { door, doorway } of warehouse.staffRooms) {
+      expect(doorway).toHaveLength(3);
+      expect(doorway).toContainEqual(door);
+      for (const gap of doorway) {
+        expect(isWalkable(warehouse.grid, gap)).toBe(true);
+        expect(warehouse.walls).not.toContainEqual(gap);
+        // Clear on both sides, so all three lanes can be used at once.
+        expect(isWalkable(warehouse.grid, { x: gap.x, y: gap.y - 1 })).toBe(true);
+        expect(isWalkable(warehouse.grid, { x: gap.x, y: gap.y + 1 })).toBe(true);
+      }
     }
   });
 
@@ -73,7 +80,9 @@ describe('createWarehouse', () => {
       for (const place of room.places) {
         expect(inside(room.bounds, place)).toBe(true);
         expect(isWalkable(warehouse.grid, place)).toBe(true);
-        expect(samePoint(place, { x: room.door.x, y: room.door.y + 1 })).toBe(false);
+        for (const gap of room.doorway) {
+          expect(samePoint(place, { x: gap.x, y: gap.y + 1 })).toBe(false);
+        }
         expect(findPath(warehouse.grid, home, place)).not.toBeNull();
       }
       for (const { cells } of room.furniture) {
@@ -83,6 +92,36 @@ describe('createWarehouse', () => {
         }
       }
     }
+  });
+
+  it('gives each room two queue spots beside its doorway, keeping the way in clear', () => {
+    for (const room of warehouse.staffRooms) {
+      expect(room.queue).toHaveLength(2);
+      for (const spot of room.queue) {
+        expect(inside(warehouse.floor, spot)).toBe(true);
+        expect(isWalkable(warehouse.grid, spot)).toBe(true);
+        expect(spot.y).toBe(room.door.y - 1);
+        // Right beside the lane in front of the doorway, never in it.
+        expect(room.doorway.some((gap) => gap.x === spot.x)).toBe(false);
+        expect(room.doorway.some((gap) => Math.abs(gap.x - spot.x) === 1)).toBe(true);
+      }
+    }
+  });
+
+  it('never lets giving way lead from the floor into a doorway or a room', () => {
+    const [canteen] = warehouse.staffRooms;
+    if (!canteen) throw new Error('missing canteen');
+    const { door } = canteen;
+    const inFront = { x: door.x, y: door.y - 1 };
+    const inside = { x: door.x, y: door.y + 1 };
+    for (const gap of canteen.doorway) {
+      expect(mayStepAside(warehouse, { x: gap.x, y: gap.y - 1 }, gap)).toBe(false);
+    }
+    expect(mayStepAside(warehouse, inFront, { x: inFront.x + 1, y: inFront.y })).toBe(true);
+    // Someone leaving a room may step back in or out of the doorway to let others pass.
+    expect(mayStepAside(warehouse, door, inside)).toBe(true);
+    expect(mayStepAside(warehouse, door, inFront)).toBe(true);
+    expect(mayStepAside(warehouse, inside, { x: inside.x + 1, y: inside.y })).toBe(true);
   });
 
   it('only connects the two rooms through the warehouse floor', () => {

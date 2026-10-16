@@ -117,7 +117,8 @@ export function routeTo(
  * Moves a walker one tick through traffic. It never enters an occupied cell: it waits,
  * looks for a detour every few blocked ticks, and eventually steps aside.
  * `occupancy` must not include the walker itself. `speed` is in cells per tick, at most
- * `OPERATOR_SPEED` (a tired walker is slower).
+ * `OPERATOR_SPEED` (a tired walker is slower). `mayStepInto` limits where stepping aside
+ * may lead.
  */
 export function advance<T extends Walker>(
   walker: T,
@@ -125,6 +126,7 @@ export function advance<T extends Walker>(
   occupancy: Occupancy,
   rng: number,
   speed: number = OPERATOR_SPEED,
+  mayStepInto: (from: Point, to: Point) => boolean = () => true,
 ): { walker: T; rng: number } {
   let current = walker;
   let state = rng;
@@ -132,7 +134,7 @@ export function advance<T extends Walker>(
 
   if (!isMoving(current) && blocked > 0) {
     if (blocked >= SIDESTEP_AFTER_TICKS) {
-      [current, state] = sidestep(current, grid, occupancy, state);
+      [current, state] = sidestep(current, grid, occupancy, state, mayStepInto);
     } else if (blocked % REPLAN_AFTER_TICKS === 0) {
       current = detour(current, grid, occupancy);
     }
@@ -185,11 +187,15 @@ function sidestep<T extends Walker>(
   grid: Grid,
   occupancy: Occupancy,
   rng: number,
+  mayStepInto: (from: Point, to: Point) => boolean,
 ): [T, number] {
   const free = NEIGHBOR_OFFSETS.map(({ x, y }) => ({
     x: walker.from.x + x,
     y: walker.from.y + y,
-  })).filter((cell) => isWalkable(grid, cell) && !occupancy.isOccupied(cell));
+  })).filter(
+    (cell) =>
+      isWalkable(grid, cell) && !occupancy.isOccupied(cell) && mayStepInto(walker.from, cell),
+  );
   if (free.length === 0) return [walker, rng];
 
   const [pick, next] = randomInt(rng, free.length);

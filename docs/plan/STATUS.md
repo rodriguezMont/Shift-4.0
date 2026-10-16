@@ -1,10 +1,10 @@
 # Status
 
-_Rewritten at the end of each step — current state only. Last update: 2026-10-16, after step 1.8a._
+_Rewritten at the end of each step — current state only. Last update: 2026-10-16, after step 1.8b._
 
 ## Where we are
 
-**Stage 1 — Game core: in progress.** Steps 1.1 to 1.7 and 1.8a are done.
+**Stage 1 — Game core: in progress.** Steps 1.1 to 1.8 are done.
 
 - **1.1** Levels are validated JSON files (`packages/sim/levels/`); a run plays a
   figurative 06:00–14:00 shift with 1×/2×/4× speed, pause and restart.
@@ -57,27 +57,44 @@ _Rewritten at the end of each step — current state only. Last update: 2026-10-
   sits under the HUD (checked at 1280 × 860, 1366 × 768 and 1024 × 768); the debug
   view uses smaller cells and stays clear of the HUD. Breaks still happen at home.
 
-Measured on Monday (same seed, no player actions): identical to steps 1.6 and 1.7
-for 2, 6 and 12 operators — the new rooms are closed to the working floor's routes,
-so the operation does not change until breaks move there (1.8b):
+- **1.8b** Breaks in the staff rooms. A tired operator (below 25%) finishes the task
+  and reserves a free place in the room with the most free places — the nearest on a
+  tie — so the team spreads across both rooms. Energy recovers **only** while eating
+  (canteen chair, back to 90%, about 40 game minutes) or drinking a coffee (café
+  standing place, back to 60%, about 12 minutes); walking, queueing or standing idle
+  restores nothing (idle operators used to recover a little — no longer). With every
+  place taken, they wait on a queue spot beside a door, and the longest wait is seated
+  first. A dismissed operator cuts the break short and leaves. Each doorway is three
+  cells wide, so up to three people go in or out at once; giving way never sends
+  someone from the floor into a doorway or a room. In the scene, diners sit facing the
+  table and coffee drinkers stand at a bistro table with a cup; the HUD adds meals,
+  coffees and queue time, and the debug view marks the queue spots.
 
-| Operators | Shipped | Late | Overdue | Score | Stars | Salaries | Penalties | Final wallet |
-| --------- | ------- | ---- | ------- | ----- | ----- | -------- | --------- | ------------ |
-| 2         | 5 of 18 | 4    | 14      | 0     | 0     | $240     | $1,321    | -$761        |
-| 6         | 13      | 4    | 6       | 900   | 2     | $720     | $366      | $514         |
-| 12        | 18      | 0    | 0       | 1800  | 3     | $1,440   | $0        | $660         |
+Measured on Monday (same seed, no player actions):
+
+| Operators | Shipped | Late | Overdue | Score | Final wallet | Meals · coffees | Break / queue time |
+| --------- | ------- | ---- | ------- | ----- | ------------ | --------------- | ------------------ |
+| 2         | 5 of 18 | 4    | 14      | 0     | -$761        | 1 · 1           | 109 / 0 min        |
+| 6         | 14      | 5    | 6       | 960   | $616         | 2 · 4           | 350 / 0 min        |
+| 12        | 18      | 0    | 0       | 1800  | $660         | 3 · 5           | 411 / 0 min        |
+
+Compared with 1.8a, six operators ship one more order (score 900 → 960): short café
+breaks put people back to work sooner. Breaks take longer overall because the rooms
+are a walk away from the docks. Widening the doorways from one cell to three cut the
+time twelve operators spend held up at the doors from 29 to 3 minutes a shift (112
+to 0 on a double-load day), and the longest jam from 7 minutes to 1. **The queue barely forms on Monday**: even twelve
+operators tire at different times, and short coffees free places fast. A Monday with
+twice the trucks and orders still showed no queue; a test with twelve operators on a
+far heavier day does fill both rooms and queue.
 
 In development, `?operators=N` overrides the team size; production ignores it.
 
 ## Next — resume here
 
-Steps 1.1–1.7 are merged into `main`; 1.8a is on `feat/staff-and-robot-areas`,
-awaiting validation. Next is **1.8b**: breaks move to the rooms — a canteen meal
-back to 90%, a café coffee back to 60%, energy recovered only while eating or
-drinking, each tired worker reserving a free place in the room with the most free
-places (nearest on a tie) and queueing at the doors when both are full; seated and
-standing poses; break, meal, coffee and queue time in the stats. Then **1.9**
-baseline policy and automated balance tests.
+Steps 1.1–1.8a are merged into `main`; 1.8b is on `feat/breaks-in-rooms`, awaiting
+validation. Next is **1.9**: the baseline policy and automated balance tests — the
+place to settle Monday's star, the price of people, and how scarce break places
+should be.
 
 ## Open decisions
 
@@ -91,10 +108,10 @@ baseline policy and automated balance tests.
 - **Dismissal is out of reach early on Monday.** At $400 it needs more cash than
   the starting $300; the first moment it is affordable depends on deliveries.
   Intended, but worth checking when balancing.
-- **Staggered breaks** become part of 1.8b: eight places for up to twelve operators
-  turn a team that tires together into a visible queue.
-- **Give-way into a door.** An operator stepping aside on the bottom aisle can step
-  into a room's door cell. Harmless now; revisit in 1.8b once rooms are in use.
+- **Break places vs. the queue.** Eight places rarely run out on Monday, so the
+  queue (the visible cost of a team that tires together) seldom shows. Fewer places,
+  or longer coffees, would make it a real management problem — tune in balancing
+  (1.9 / 2.6); "more break-room places" stays an upgrade (2.7).
 - Outbound trucks are still static; animating them per order is a candidate for the
   control-room work (5.2).
 - Hosting for the decision worker — Stage 3.

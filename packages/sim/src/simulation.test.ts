@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { REST_BELOW, RESUME_AT, speedFactor } from './fatigue';
+import { targetOf } from './breaks';
+import { BREAK_ENDS_AT, REST_BELOW, speedFactor } from './fatigue';
 import { at, manhattanDistance, samePoint } from './geometry';
 import { isWalkable } from './grid';
-import { MAX_OPERATORS } from './layout';
-import { OPERATOR_SPEED, SIDESTEP_AFTER_TICKS } from './movement';
+import { contains, MAX_OPERATORS } from './layout';
+import { isHeldUp, OPERATOR_SPEED, SIDESTEP_AFTER_TICKS } from './movement';
 import {
+  BREAK_PHASES,
   createInitialState,
+  operatorById,
   operatorPosition,
   step,
   type Operator,
@@ -26,6 +29,19 @@ function run(world: World, ticks = TEST_SHIFT_TICKS): SimState[] {
 function finalState(world: World): SimState {
   const states = run(world);
   return at(states, states.length - 1);
+}
+
+/** Calls `check` with each operator before and after every tick, matched by id. */
+function eachStep(
+  states: readonly SimState[],
+  check: (before: Operator, after: Operator) => void,
+): void {
+  for (let i = 1; i < states.length; i++) {
+    for (const after of at(states, i).operators) {
+      const before = operatorById(at(states, i - 1).operators, after.id);
+      if (before !== null) check(before, after);
+    }
+  }
 }
 
 /** Boxes in racks plus boxes being carried out; putaways add to it, dispatches remove. */
@@ -191,30 +207,43 @@ describe('fatigue in the simulation', () => {
     }
   });
 
-  it('sends tired operators on a break at home, without work, until they recover', () => {
-    let breaks = 0;
-    for (let i = 1; i < states.length; i++) {
-      const previous = at(states, i - 1);
-      at(states, i).operators.forEach((operator, index) => {
-        const before = at(previous.operators, index);
-        if (operator.phase === 'resting') {
-          expect(operator.task).toBeNull();
-          expect(operator.from).toEqual(operator.home);
-          if (before.phase !== 'resting') {
-            breaks++;
-            expect(before.energy).toBeLessThan(REST_BELOW);
-          }
-        }
-        if (before.phase === 'resting' && operator.phase !== 'resting') {
-          expect(before.energy).toBeGreaterThanOrEqual(RESUME_AT);
-        }
-      });
-    }
-    expect(breaks).toBeGreaterThan(0);
+  it('recovers energy only while eating or drinking, never anywhere else', () => {
+    eachStep(states, (before, operator) => {
+      if (operator.energy > before.energy) {
+        expect(['eating', 'drinking']).toContain(operator.phase);
+      }
+    });
     const final = at(states, states.length - 1);
+    expect(final.stats.meals + final.stats.coffees).toBeGreaterThan(0);
     expect(final.stats.breakTicks).toBeGreaterThan(0);
     // Salaries accrue for every operator on every tick, breaks included.
     expect(final.stats.staffTicks).toBe(final.operators.length * final.tick);
+  });
+
+  it('goes for a break only when tired, and leaves it only once recovered', () => {
+    const { warehouse } = world;
+    let breaks = 0;
+    eachStep(states, (before, operator) => {
+      if (!BREAK_PHASES.includes(before.phase) && BREAK_PHASES.includes(operator.phase)) {
+        breaks++;
+        expect(before.energy).toBeLessThan(REST_BELOW);
+        expect(operator.task).toBeNull();
+      }
+      if (operator.phase === 'eating' || operator.phase === 'drinking') {
+        const plan = operator.breakPlan;
+        if (plan?.kind !== 'place') throw new Error('on a break without a place');
+        const room = at(warehouse.staffRooms, plan.room);
+        expect(room.kind).toBe(operator.phase === 'eating' ? 'canteen' : 'cafe');
+        expect(operator.from).toEqual(targetOf(warehouse, plan));
+      }
+      for (const kind of ['eating', 'drinking'] as const) {
+        if (before.phase === kind && operator.phase !== kind) {
+          const room = kind === 'eating' ? 'canteen' : 'cafe';
+          expect(before.energy).toBeGreaterThanOrEqual(BREAK_ENDS_AT[room]);
+        }
+      }
+    });
+    expect(breaks).toBeGreaterThan(0);
   });
 
   it('makes tired operators walk slower', () => {
@@ -226,6 +255,90 @@ describe('fatigue in the simulation', () => {
         expect(moved).toBeLessThanOrEqual(OPERATOR_SPEED * speedFactor(before.energy) + 1e-9);
       });
     }
+  });
+});
+
+describe('breaks in the staff rooms', () => {
+  // Twelve operators on a very heavy day: they tire together and fill both rooms.
+  const world = testWorld({
+    seed: 7,
+    operators: MAX_OPERATORS,
+    scenario: {
+      trucks: { count: 60, boxes: [4, 6], peaks: [] },
+      orders: { count: 60, boxes: [1, 3], deadlineMinutes: [60, 120], peaks: [] },
+    },
+  });
+  const states = run(world);
+  const final = at(states, states.length - 1);
+
+  it('spreads breaks across the canteen and the café, and queues when both are full', () => {
+    expect(final.stats.meals).toBeGreaterThan(0);
+    expect(final.stats.coffees).toBeGreaterThan(0);
+    expect(final.stats.queueTicks).toBeGreaterThan(0);
+  });
+
+  it('lets people pass through a doorway without jamming it', () => {
+    const doorway = world.warehouse.staffRooms.flatMap((room) => room.doorway);
+    const heldFor = new Map<number, number>();
+    let longest = 0;
+    for (const state of states) {
+      for (const operator of state.operators) {
+        const atDoor = doorway.some((gap) => manhattanDistance(gap, operator.from) <= 1);
+        const ticks = atDoor && isHeldUp(operator) ? (heldFor.get(operator.id) ?? 0) + 1 : 0;
+        heldFor.set(operator.id, ticks);
+        longest = Math.max(longest, ticks);
+      }
+    }
+    // Three abreast: never stuck long enough to need stepping aside.
+    expect(longest).toBeLessThan(SIDESTEP_AFTER_TICKS);
+  });
+
+  it('never gives the same place or queue spot to two operators', () => {
+    for (const state of states) {
+      const held = state.operators
+        .map((operator) => operator.breakPlan)
+        .filter((plan) => plan !== null)
+        .map((plan) => JSON.stringify(plan.kind === 'queue' ? plan.spot : plan));
+      expect(new Set(held).size).toBe(held.length);
+    }
+  });
+
+  it('seats the longest-waiting person first', () => {
+    for (let i = 1; i < states.length; i++) {
+      const previous = at(states, i - 1);
+      const waitingSince = (state: SimState) =>
+        state.operators.flatMap((operator) =>
+          operator.phase === 'queueing' && operator.breakPlan?.kind === 'queue'
+            ? [operator.breakPlan.since]
+            : [],
+        );
+      const seated = previous.operators.filter((before) => {
+        const after = operatorById(at(states, i).operators, before.id);
+        return before.phase === 'queueing' && after?.breakPlan?.kind === 'place';
+      });
+      const stillWaiting = waitingSince(at(states, i));
+      for (const operator of seated) {
+        const since = operator.breakPlan?.kind === 'queue' ? operator.breakPlan.since : 0;
+        for (const other of stillWaiting) expect(since).toBeLessThanOrEqual(other);
+      }
+    }
+  });
+
+  it('keeps everyone not on a break out of the rooms, except on the way out', () => {
+    const rooms = world.warehouse.staffRooms;
+    eachStep(states, (before, operator) => {
+      const inRoom = rooms.some((room) => contains(room.bounds, operator.from));
+      // Only someone leaving after a break is in a room without one: still inside, or in
+      // the doorway stepping back in to let someone else through.
+      if (inRoom && operator.breakPlan === null) {
+        const wasInside = rooms.some(
+          (room) =>
+            contains(room.bounds, before.from) ||
+            room.doorway.some((gap) => samePoint(gap, before.from)),
+        );
+        expect(wasInside || before.breakPlan !== null).toBe(true);
+      }
+    });
   });
 });
 

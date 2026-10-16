@@ -1,16 +1,18 @@
 /**
- * Operator stamina. Energy runs from 0 (exhausted) to 1 (fresh): work drains it, rest
- * restores it, and tired operators walk slower.
+ * Operator stamina. Energy runs from 0 (exhausted) to 1 (fresh): work drains it, and only
+ * a break restores it — eating a meal in the canteen or having a coffee in the café.
+ * Standing around, in a room or anywhere else, restores nothing.
  *
  * Rates are expressed per shift, not per tick, so a level's real-time length never
  * changes how tiring a working day is. They are tuned so an operator busy all day hits
- * the break threshold around 11:00 and spends roughly forty minutes recovering.
+ * the break threshold around 11:00.
  */
+import type { StaffRoomKind } from './layout';
 
 /** Below this energy an operator takes a break once their current task is done. */
 export const REST_BELOW = 0.25;
-/** A break lasts until energy is back to this level. */
-export const RESUME_AT = 0.9;
+/** A break lasts until energy is back to this level: a meal restores more than a coffee. */
+export const BREAK_ENDS_AT: Record<StaffRoomKind, number> = { canteen: 0.9, cafe: 0.6 };
 /** Walking speed at zero energy, as a share of full speed. */
 const EXHAUSTED_SPEED_SHARE = 0.7;
 
@@ -25,18 +27,18 @@ const DRAIN_PER_SHIFT = {
 
 /** Energy regained over a whole shift of doing only this. */
 const RECOVERY_PER_SHIFT = {
-  /** On a break at the rest spot: about 40 game minutes from the threshold to resuming. */
-  resting: 7.8,
-  /** Standing idle without work. */
-  waiting: 0.3,
+  /** Seated meal: about 40 game minutes from the break threshold back to 90%. */
+  eating: 7.8,
+  /** Standing coffee: quicker, about 12 game minutes from the threshold back to 60%. */
+  drinking: 14,
 } as const;
 
 /** What an operator did during a tick, as far as their energy is concerned. */
-export type Effort = 'resting' | 'waiting' | 'walking' | 'carrying' | 'handling' | 'still';
+export type Effort = 'eating' | 'drinking' | 'walking' | 'carrying' | 'handling' | 'still';
 
 const CHANGE_PER_SHIFT: Record<Effort, number> = {
-  resting: RECOVERY_PER_SHIFT.resting,
-  waiting: RECOVERY_PER_SHIFT.waiting,
+  eating: RECOVERY_PER_SHIFT.eating,
+  drinking: RECOVERY_PER_SHIFT.drinking,
   walking: -DRAIN_PER_SHIFT.walking,
   carrying: -(DRAIN_PER_SHIFT.walking + DRAIN_PER_SHIFT.carrying),
   handling: -DRAIN_PER_SHIFT.handling,

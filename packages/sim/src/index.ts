@@ -16,6 +16,7 @@ export {
   type ActionRequest,
   type ActionResult,
 } from './actions';
+export { facingOf, type BreakPlan } from './breaks';
 export { economyOf, ORDER_POINTS, type Economy, type Ledger } from './economy';
 export { samePoint, type Point } from './geometry';
 export { isWalkable, type Grid } from './grid';
@@ -45,6 +46,7 @@ export {
   type TruckArrival,
 } from './scenario';
 export {
+  BREAK_PHASES,
   createInitialState,
   operatorById,
   operatorPosition,
@@ -77,4 +79,4 @@ export {
   type OrderOutcome,
   type OrderProgress,
 } from './orders';
-export { needsRest, RESUME_AT, REST_BELOW, speedFactor } from './fatigue';
+export { BREAK_ENDS_AT, needsRest, REST_BELOW, speedFactor } from './fatigue';

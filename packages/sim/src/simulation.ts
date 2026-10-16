@@ -1,6 +1,15 @@
 import { isShiftOver } from './clock';
-import { needsRest, nextEnergy, RESUME_AT, speedFactor, type Effort } from './fatigue';
+import {
+  BreakBook,
+  choosePlace,
+  chooseQueueSpot,
+  roomOf,
+  targetOf,
+  type BreakPlan,
+} from './breaks';
+import { BREAK_ENDS_AT, needsRest, nextEnergy, speedFactor, type Effort } from './fatigue';
 import { at, samePoint, type Point } from './geometry';
+import { mayStepAside } from './layout';
 import {
   advance,
   hasArrived,
@@ -68,15 +77,29 @@ export type TaskKind = Task['kind'];
 
 /**
  * `returning`: no work available, walking back to the operator's home cell.
- * `toBreak` / `resting`: too tired to work, walking home for a break / on it.
+ * `toBreak`: too tired to work, walking to a reserved place or to the queue.
+ * `queueing`: waiting beside a staff-room door for a place to free up.
+ * `eating` / `drinking`: on a break at a canteen chair / a café standing place.
  */
 export type OperatorPhase =
-  'idle' | 'returning' | 'toBreak' | 'resting' | 'toPickup' | 'picking' | 'toDropoff' | 'dropping';
+  | 'idle'
+  | 'returning'
+  | 'toBreak'
+  | 'queueing'
+  | 'eating'
+  | 'drinking'
+  | 'toPickup'
+  | 'picking'
+  | 'toDropoff'
+  | 'dropping';
+
+/** Phases that make up a break, from leaving work to going back to it. */
+export const BREAK_PHASES: readonly OperatorPhase[] = ['toBreak', 'queueing', 'eating', 'drinking'];
 
 export interface Operator extends Walker {
   /** Unique within a run and never reused, so views and player actions can name an operator. */
   readonly id: number;
-  /** Where the operator starts, waits when idle and takes breaks. */
+  /** Where the operator starts and waits when idle. */
   readonly home: Point;
   readonly phase: OperatorPhase;
   readonly task: Task | null;
@@ -86,6 +109,8 @@ export interface Operator extends Walker {
   readonly energy: number;
   /** Dismissed: finishes the current task, walks home and leaves the floor. */
   readonly leaving: boolean;
+  /** The place or queue spot held for this operator's break; null when not on one. */
+  readonly breakPlan: BreakPlan | null;
 }
 
 /** A hired operator on the way in, who appears at their home once `tick` is reached. */
@@ -107,8 +132,15 @@ export interface SimStats {
   readonly dockWaitTicks: number;
   /** Sum over ticks of operators held up by traffic: blocked, or standing aside to give way. */
   readonly congestionTicks: number;
-  /** Sum over ticks of operators on a break. */
+  /** Sum over ticks of operators on a break: walking to it, queueing, eating or drinking. */
   readonly breakTicks: number;
+  /** Sum over ticks of operators eating / drinking a coffee / waiting for a place. */
+  readonly mealTicks: number;
+  readonly coffeeTicks: number;
+  readonly queueTicks: number;
+  /** Breaks taken in the canteen and in the café. */
+  readonly meals: number;
+  readonly coffees: number;
   /** Sum over ticks of operators on the payroll, on a break or not. Salaries accrue from it. */
   readonly staffTicks: number;
   /** Operators hired and dismissed by the player; each costs a one-off fee. */
@@ -140,6 +172,7 @@ interface Context {
   readonly world: World;
   readonly tick: number;
   readonly occupancy: Occupancy;
+  readonly breaks: BreakBook;
 }
 
 /** The state at the start of the level's shift, fully determined by the level and its seed. */
@@ -169,6 +202,11 @@ export function createInitialState({ warehouse, level, scenario }: World): SimSt
       dockWaitTicks: 0,
       congestionTicks: 0,
       breakTicks: 0,
+      mealTicks: 0,
+      coffeeTicks: 0,
+      queueTicks: 0,
+      meals: 0,
+      coffees: 0,
       staffTicks: 0,
       hires: 0,
       dismissals: 0,
@@ -193,6 +231,7 @@ function newOperator(id: number, home: Point): Operator {
     waitTicks: 0,
     energy: 1,
     leaving: false,
+    breakPlan: null,
   };
 }
 
@@ -217,30 +256,44 @@ export function step(world: World, state: SimState): SimState {
     },
   };
 
-  // Operators move in id order; each sees the others where they are at that moment.
+  const occupancy = new Occupancy(warehouse.grid, state.operators);
+  const { arrived, arrivals } = admitArrivals(state, occupancy);
+  const present = [...state.operators, ...arrived];
   const context: Context = {
     world,
     tick: state.tick,
-    occupancy: new Occupancy(warehouse.grid, state.operators),
+    occupancy,
+    breaks: new BreakBook(present.map((operator) => operator.breakPlan)),
   };
-  const { arrived, arrivals } = admitArrivals(state, context.occupancy);
-  const moved = [...state.operators, ...arrived].map((operator) => {
+  let meals = 0;
+  let coffees = 0;
+  // Those waiting longest get freed places first, before anyone new can take them.
+  // Operators then move in id order; each sees the others where they are at that moment.
+  const moved = seatFromQueue(context, present).map((operator) => {
     context.occupancy.remove(operator);
     let next: Operator;
     [next, shared] = stepOperator(context, operator, shared);
     context.occupancy.add(next);
+    if (next.phase !== operator.phase && next.phase === 'eating') meals++;
+    if (next.phase !== operator.phase && next.phase === 'drinking') coffees++;
     const effort = effortOf(operator, next);
     return { ...next, energy: nextEnergy(next.energy, effort, level.shift.durationTicks) };
   });
   const operators = moved.filter((operator) => !hasLeft(operator));
 
-  const heldUp = operators.filter(isHeldUp).length;
-  const onBreak = operators.filter((operator) => operator.phase === 'resting').length;
+  const count = (phases: readonly OperatorPhase[]) =>
+    operators.filter((operator) => phases.includes(operator.phase)).length;
+  const { stats: before } = shared;
   const stats = {
-    ...shared.stats,
-    congestionTicks: shared.stats.congestionTicks + heldUp,
-    breakTicks: shared.stats.breakTicks + onBreak,
-    staffTicks: shared.stats.staffTicks + operators.length,
+    ...before,
+    congestionTicks: before.congestionTicks + operators.filter(isHeldUp).length,
+    breakTicks: before.breakTicks + count(BREAK_PHASES),
+    mealTicks: before.mealTicks + count(['eating']),
+    coffeeTicks: before.coffeeTicks + count(['drinking']),
+    queueTicks: before.queueTicks + count(['queueing']),
+    meals: before.meals + meals,
+    coffees: before.coffees + coffees,
+    staffTicks: before.staffTicks + operators.length,
   };
   return {
     tick: state.tick + 1,
@@ -274,11 +327,68 @@ function admitArrivals(
   return { arrived, arrivals: waiting.length === state.arrivals.length ? state.arrivals : waiting };
 }
 
+/**
+ * Hands freed places to those queueing, longest wait first (then lowest id). Someone still
+ * walking towards the queue is redirected once they reach the next cell.
+ */
+function seatFromQueue(context: Context, operators: readonly Operator[]): Operator[] {
+  const { warehouse } = context.world;
+  const queued = operators
+    .filter((operator) => operator.breakPlan?.kind === 'queue' && !operator.leaving)
+    .filter((operator) => !isMoving(operator))
+    .sort((a, b) => queuedSince(a) - queuedSince(b) || a.id - b.id);
+  const seated = new Map<number, Operator>();
+  for (const operator of queued) {
+    const place = choosePlace(warehouse, context.breaks, operator.from);
+    if (place === null) break;
+    context.breaks.release(operator.breakPlan);
+    context.breaks.hold(place);
+    seated.set(operator.id, headFor(context, operator, place));
+  }
+  return operators.map((operator) => seated.get(operator.id) ?? operator);
+}
+
+function queuedSince(operator: Operator): number {
+  return operator.breakPlan?.kind === 'queue' ? operator.breakPlan.since : Infinity;
+}
+
+/** Reserves a place for a tired operator, or a queue spot when every place is taken. */
+function startBreak(context: Context, operator: Operator): Operator {
+  const { warehouse } = context.world;
+  const { breaks, tick } = context;
+  // With every queue spot taken too (not possible with today's team cap), wait in place.
+  const plan: BreakPlan = choosePlace(warehouse, breaks, operator.from) ??
+    chooseQueueSpot(warehouse, breaks, operator.from, tick) ?? {
+      kind: 'queue',
+      spot: operator.from,
+      since: tick,
+    };
+  breaks.hold(plan);
+  return headFor(context, operator, plan);
+}
+
+function headFor(context: Context, operator: Operator, plan: BreakPlan): Operator {
+  const { warehouse } = context.world;
+  return {
+    ...operator,
+    ...routeTo(warehouse.grid, operator.from, targetOf(warehouse, plan)),
+    breakPlan: plan,
+    phase: 'toBreak',
+  };
+}
+
+/** Gives up the place or queue spot and becomes available again. */
+function endBreak(context: Context, operator: Operator): Operator {
+  context.breaks.release(operator.breakPlan);
+  return { ...operator, breakPlan: null, phase: 'idle' };
+}
+
 /** A dismissed operator leaves once standing at home with nothing in hand. */
 function hasLeft(operator: Operator): boolean {
   return (
     operator.leaving &&
     operator.task === null &&
+    operator.breakPlan === null &&
     !isMoving(operator) &&
     samePoint(operator.from, operator.home)
   );
@@ -286,13 +396,13 @@ function hasLeft(operator: Operator): boolean {
 
 /** How hard an operator worked this tick, judged from where they were and are now. */
 function effortOf(before: Operator, after: Operator): Effort {
-  if (after.phase === 'resting') return 'resting';
+  if (after.phase === 'eating' || after.phase === 'drinking') return after.phase;
   if (after.phase === 'picking' || after.phase === 'dropping') return 'handling';
   if (!samePoint(walkerPosition(before), walkerPosition(after))) {
     return after.carrying ? 'carrying' : 'walking';
   }
-  // Standing idle recovers a little; standing in traffic neither tires nor rests.
-  return after.phase === 'idle' ? 'waiting' : 'still';
+  // Standing anywhere (idle, queueing, in traffic) neither tires nor rests.
+  return 'still';
 }
 
 /** The operator with this id, wherever it sits in the list; null once it is gone. */
@@ -320,15 +430,8 @@ function stepOperator(context: Context, operator: Operator, shared: Shared): [Op
               shared,
             ];
       }
-      // A tired operator finishes the current task, then takes a break at home.
-      if (needsRest(operator.energy)) {
-        return atHome
-          ? [{ ...operator, phase: 'resting' }, shared]
-          : [
-              { ...operator, ...routeTo(warehouse.grid, operator.from, home), phase: 'toBreak' },
-              shared,
-            ];
-      }
+      // A tired operator finishes the current task, then goes for a break.
+      if (needsRest(operator.energy)) return [startBreak(context, operator), shared];
       const [assigned, next] = assignTask(context, operator, shared);
       if (assigned !== operator) return [assigned, next];
       if (atHome) return [operator, shared];
@@ -339,25 +442,40 @@ function stepOperator(context: Context, operator: Operator, shared: Shared): [Op
     }
 
     case 'returning': {
-      // Work beats walking home: take a task as soon as one appears.
-      if (!isMoving(operator) && !needsRest(operator.energy) && !operator.leaving) {
+      // Work beats walking home: take a task as soon as one appears, or a break if tired.
+      if (!isMoving(operator) && !operator.leaving) {
+        if (needsRest(operator.energy)) return [startBreak(context, operator), shared];
         const [assigned, next] = assignTask(context, operator, shared);
         if (assigned !== operator) return [assigned, next];
       }
       const [walked, next] = move(context, operator, shared);
-      if (!hasArrived(walked)) return [walked, next];
-      return [{ ...walked, phase: needsRest(walked.energy) ? 'resting' : 'idle' }, next];
+      return hasArrived(walked) ? [{ ...walked, phase: 'idle' }, next] : [walked, next];
     }
 
     case 'toBreak': {
+      // Dismissed on the way: no break, straight home (from the next cell).
+      if (operator.leaving && !isMoving(operator)) return [endBreak(context, operator), shared];
       const [walked, next] = move(context, operator, shared);
-      return hasArrived(walked) ? [{ ...walked, phase: 'resting' }, next] : [walked, next];
+      if (!hasArrived(walked)) return [walked, next];
+      const plan = currentPlan(walked);
+      if (plan.kind === 'queue') return [{ ...walked, phase: 'queueing' }, next];
+      const phase = roomOf(warehouse, plan).kind === 'canteen' ? 'eating' : 'drinking';
+      return [{ ...walked, phase }, next];
     }
 
-    case 'resting':
-      return operator.energy >= RESUME_AT
-        ? [{ ...operator, phase: 'idle' }, shared]
+    case 'queueing':
+      // Seated from the queue at the start of a tick (`seatFromQueue`); otherwise wait.
+      return operator.leaving ? [endBreak(context, operator), shared] : [operator, shared];
+
+    case 'eating':
+    case 'drinking': {
+      const plan = currentPlan(operator);
+      const room = plan.kind === 'place' ? roomOf(warehouse, plan) : null;
+      const recovered = room === null || operator.energy >= BREAK_ENDS_AT[room.kind];
+      return operator.leaving || recovered
+        ? [endBreak(context, operator), shared]
         : [operator, shared];
+    }
 
     case 'toPickup':
     case 'toDropoff': {
@@ -421,9 +539,17 @@ function stepOperator(context: Context, operator: Operator, shared: Shared): [Op
 }
 
 function move(context: Context, operator: Operator, shared: Shared): [Operator, Shared] {
-  const { grid } = context.world.warehouse;
+  const { warehouse } = context.world;
   const speed = OPERATOR_SPEED * speedFactor(operator.energy);
-  const { walker, rng } = advance(operator, grid, context.occupancy, shared.rng, speed);
+  // Giving way never sends someone into a doorway or from the floor into a room.
+  const { walker, rng } = advance(
+    operator,
+    warehouse.grid,
+    context.occupancy,
+    shared.rng,
+    speed,
+    (from, to) => mayStepAside(warehouse, from, to),
+  );
   return [walker, { ...shared, rng }];
 }
 
@@ -491,6 +617,13 @@ function drawTask(context: Context, shared: Shared): { task: Task; next: Shared 
     },
     next: { ...shared, rng, orders: claimOrderBox(shared.orders, order.id) },
   };
+}
+
+function currentPlan(operator: Operator): BreakPlan {
+  if (operator.breakPlan === null) {
+    throw new Error(`Operator ${String(operator.id)} is ${operator.phase} without a break plan`);
+  }
+  return operator.breakPlan;
 }
 
 function currentTask(operator: Operator): Task {
