@@ -40,6 +40,12 @@ export function ShiftStats() {
       <dd>{Math.round(averageEnergy * 100)}%</dd>
       <dt>Break time</dt>
       <dd>{Math.round(stats.breakTicks * minutes)} min</dd>
+      <dt>Meals · coffees</dt>
+      <dd>
+        {stats.meals} · {stats.coffees}
+      </dd>
+      <dt>Queue for a break</dt>
+      <dd>{Math.round(stats.queueTicks * minutes)} min</dd>
       <dt>Trucks unloaded</dt>
       <dd>{stats.trucksUnloaded}</dd>
       <dt>Avg dock wait</dt>
