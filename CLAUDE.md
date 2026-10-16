@@ -35,6 +35,7 @@ session, read `STATUS.md` first; open the rest only when it answers your questio
 | `receiving.ts`                         | Inbound docks, truck queue, unloading, which dock to free next                 |
 | `orders.ts`                            | Order progress, earliest-deadline-first picking, on-time / late / missed       |
 | `fatigue.ts`                           | Operator energy, tired walking speed, break thresholds                         |
+| `economy.ts`                           | Wallet, score and stars, derived from run stats and the level's money values   |
 | `clock.ts`, `rng.ts`, `pathfinding.ts` | Shift time, seeded random streams, A\*                                         |
 
 `apps/web/src` — `simulation/runner.ts` drives fixed ticks and interpolation;
